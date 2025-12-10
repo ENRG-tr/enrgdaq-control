@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { useStore } from '../store';
-import { type RunRecord } from '../api';
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useStore } from '@/lib/store';
 
 const RunDashboard = () => {
   const {
@@ -12,7 +13,22 @@ const RunDashboard = () => {
     clientOnline,
     clients,
     selectClient,
+    fetchClients,
+    fetchRuns,
+    pollClientStatus
   } = useStore();
+
+  useEffect(() => {
+    fetchClients();
+    fetchRuns();
+
+    const interval = setInterval(() => {
+        fetchClients();
+        pollClientStatus();
+        fetchRuns();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [description, setDescription] = useState('');
   const [isStarting, setIsStarting] = useState(false);
@@ -57,7 +73,7 @@ const RunDashboard = () => {
           </select>
           <div
             className={`ms-3 status-dot ${
-              clientOnline ? 'status-online' : 'status-offline'
+                clientOnline ? 'status-online' : 'status-offline'
             }`}
           ></div>
         </div>

@@ -1,34 +1,8 @@
-import React, { useState } from 'react';
-import { useStore } from '../store';
-import { API } from '../api';
+'use client';
 
-const TEMPLATES: Record<string, string> = {
-  'caen_digitizer.toml': `daq_job_type = "DAQJobCAENDigitizer"
-connection_type = "OPTICAL_LINK"
-link_number = "1"
-conet_node = 0
-vme_base_address = 0
-channel_enable_mask = 0b11
-record_length = 1024
-acquisition_mode = "SW_CONTROLLED"
-[waveform_store_config.raw]
-file_path = "caen_digitizer_waveforms.raw"
-add_date = true
-overwrite = true`,
-  'n1081b.toml': `daq_job_type = "DAQJobN1081B"
-host = "1.2.3.4"
-port = "8080"
-password = "password"
-[store_config.csv]
-file_path = "n1081b.csv"
-add_date = true`,
-  'test_gen.toml': `daq_job_type = "DAQJobTest"
-rand_min = 1
-rand_max = 100
-[store_config.csv]
-file_path = "test.csv"
-add_date = true`,
-};
+import React, { useState, useEffect } from 'react';
+import { useStore } from '@/lib/store';
+import { API, type LogEntry, type Template } from '@/lib/api-client';
 
 const AdvancedControl = () => {
   const {
@@ -40,17 +14,37 @@ const AdvancedControl = () => {
     selectClient,
   } = useStore();
 
-  const [configTemplate, setConfigTemplate] = useState<string>(
-    Object.keys(TEMPLATES)[0]
-  );
-  const [customConfig, setCustomConfig] = useState<string>(
-    TEMPLATES[Object.keys(TEMPLATES)[0]]
-  );
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [customConfig, setCustomConfig] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch templates on mount
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const data = await API.getTemplates();
+        setTemplates(data);
+        if (data.length > 0) {
+          setSelectedTemplate(data[0].name);
+          setCustomConfig(data[0].config);
+        }
+      } catch (e) {
+        console.error('Failed to fetch templates:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTemplates();
+  }, []);
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const t = e.target.value;
-    setConfigTemplate(t);
-    setCustomConfig(TEMPLATES[t]);
+    const name = e.target.value;
+    setSelectedTemplate(name);
+    const template = templates.find(t => t.name === name);
+    if (template) {
+      setCustomConfig(template.config);
+    }
   };
 
   const activeJobs = clientStatus?.daq_jobs || [];
@@ -102,7 +96,8 @@ const AdvancedControl = () => {
             <div className="card-body">
               {activeJobs.length > 0 ? (
                 <div className="row g-3">
-                  {activeJobs.map((job: DAQJob) => (
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {activeJobs.map((job: any) => (
                     <div key={job.unique_id} className="col-md-4 col-lg-3">
                       <div className="card h-100 border-secondary bg-black">
                         <div className="card-body">
@@ -148,17 +143,21 @@ const AdvancedControl = () => {
             <div className="card-body">
               <div className="mb-3">
                 <label className="form-label text-muted">Template</label>
-                <select
-                  className="form-select bg-dark text-light border-secondary"
-                  value={configTemplate}
-                  onChange={handleTemplateChange}
-                >
-                  {Object.keys(TEMPLATES).map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                {isLoading ? (
+                  <div className="text-muted">Loading templates...</div>
+                ) : (
+                  <select
+                    className="form-select bg-dark text-light border-secondary"
+                    value={selectedTemplate}
+                    onChange={handleTemplateChange}
+                  >
+                    {templates.map((t) => (
+                      <option key={t.name} value={t.name}>
+                        {t.displayName} {t.source === 'custom' && '(Custom)'}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div className="mb-3">
                 <textarea
@@ -193,7 +192,7 @@ const AdvancedControl = () => {
                 style={{ minHeight: '450px', maxHeight: '450px' }}
               >
                 {[]
-                  .concat(logs)
+                  .concat(logs as any)
                   .reverse()
                   .map((l: LogEntry, i) => (
                     <div key={i} className="log-entry">
