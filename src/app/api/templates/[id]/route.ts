@@ -6,9 +6,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const { id } = await params;
     const body = await req.json();
-    const { displayName, config } = body;
+    const { displayName, config, runTypeIds } = body;
 
-    const template = await TemplateController.updateTemplate(parseInt(id), { displayName, config });
+    const template = await TemplateController.updateTemplate(parseInt(id), { displayName, config, runTypeIds });
     if (!template) {
       return NextResponse.json({ error: 'Template not found or not editable' }, { status: 404 });
     }

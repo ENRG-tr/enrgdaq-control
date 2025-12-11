@@ -4,7 +4,8 @@ export interface Run {
   startTime: Date;
   endTime: Date | null;
   status: string;
-  daqJobName: string | null;
+  daqJobIds: string[] | null;
   config: string | null;
   clientId: string | null;
+  runTypeId: number | null;
 }

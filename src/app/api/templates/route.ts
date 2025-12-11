@@ -15,13 +15,13 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, displayName, config } = body;
+    const { name, displayName, config, runTypeIds } = body;
 
     if (!name || !displayName || !config) {
       return NextResponse.json({ error: 'Missing name, displayName, or config' }, { status: 400 });
     }
 
-    const template = await TemplateController.createTemplate({ name, displayName, config });
+    const template = await TemplateController.createTemplate({ name, displayName, config, runTypeIds });
     return NextResponse.json(template);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

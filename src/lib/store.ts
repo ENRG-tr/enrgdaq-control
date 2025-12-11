@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { API, type LogEntry } from './api-client';
+import { API, type LogEntry, type RunType } from './api-client';
 import type { Run } from './types';
 
 interface AppState {
@@ -13,15 +13,17 @@ interface AppState {
   // Run State
   runs: Run[];
   activeRun: Run | null;
+  runTypes: RunType[];
 
   // Actions
   fetchClients: () => Promise<void>;
   selectClient: (id: string) => void;
   pollClientStatus: () => Promise<void>;
 
-  startRun: (description: string) => Promise<void>;
+  startRun: (description: string, runTypeId?: number) => Promise<void>;
   stopRun: () => Promise<void>;
   fetchRuns: () => Promise<void>;
+  fetchRunTypes: () => Promise<void>;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -33,6 +35,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   runs: [],
   activeRun: null,
+  runTypes: [],
 
   fetchClients: async () => {
     try {
@@ -75,10 +78,19 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
-  startRun: async (description: string) => {
+  fetchRunTypes: async () => {
+    try {
+        const runTypes = await API.getRunTypes();
+        set({ runTypes });
+    } catch(e) {
+        console.error("Failed to fetch run types", e);
+    }
+  },
+
+  startRun: async (description: string, runTypeId?: number) => {
     const { selectedClient } = get();
     if (!selectedClient) throw new Error('No client selected');
-    await API.startRun(description, selectedClient);
+    await API.startRun(description, selectedClient, runTypeId);
     await get().fetchRuns();
   },
 

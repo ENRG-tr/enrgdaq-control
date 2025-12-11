@@ -1,26 +1,31 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { API, Template } from '@/lib/api-client';
+import { API, Template, RunType } from '@/lib/api-client';
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [runTypes, setRunTypes] = useState<RunType[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false); // If true, we are editing the selected template
 
   // Form state
-  const [formData, setFormData] = useState({ name: '', displayName: '', config: '' });
+  const [formData, setFormData] = useState({ name: '', displayName: '', config: '', runTypeIds: [] as number[] });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadTemplates();
+    loadData();
   }, []);
 
-  const loadTemplates = async () => {
+  const loadData = async () => {
     try {
-      const data = await API.getTemplates();
-      setTemplates(data);
+      const [tData, rtData] = await Promise.all([
+        API.getTemplates(),
+        API.getRunTypes()
+      ]);
+      setTemplates(tData);
+      setRunTypes(rtData);
     } catch (e: any) {
       setError(e.message);
     }
@@ -36,7 +41,8 @@ export default function TemplatesPage() {
     setFormData({
       name: t.name,
       displayName: t.displayName,
-      config: t.config
+      config: t.config,
+      runTypeIds: t.runTypeIds || []
     });
     setError(null);
   };
@@ -45,7 +51,7 @@ export default function TemplatesPage() {
     setSelectedTemplate(null);
     setIsCreating(true);
     setIsEditing(false);
-    setFormData({ name: '', displayName: '', config: '' });
+    setFormData({ name: '', displayName: '', config: '', runTypeIds: [] });
     setError(null);
   };
 
@@ -55,7 +61,8 @@ export default function TemplatesPage() {
     setFormData({
       name: selectedTemplate.name,
       displayName: selectedTemplate.displayName,
-      config: selectedTemplate.config
+      config: selectedTemplate.config,
+      runTypeIds: selectedTemplate.runTypeIds || []
     });
   };
 
@@ -66,10 +73,11 @@ export default function TemplatesPage() {
         setFormData({
             name: selectedTemplate.name,
             displayName: selectedTemplate.displayName,
-            config: selectedTemplate.config
+            config: selectedTemplate.config,
+            runTypeIds: selectedTemplate.runTypeIds || []
         });
     } else {
-        setFormData({ name: '', displayName: '', config: '' });
+        setFormData({ name: '', displayName: '', config: '', runTypeIds: [] });
     }
     setError(null);
   };
@@ -79,15 +87,16 @@ export default function TemplatesPage() {
     try {
       if (isCreating) {
         const newTemplate = await API.createTemplate(formData);
-        await loadTemplates();
+        await loadData(); // Reload all to get updated relations
         setSelectedTemplate(newTemplate);
         setIsCreating(false);
       } else if (isEditing && selectedTemplate) {
         const updated = await API.updateTemplate(selectedTemplate.id, {
             displayName: formData.displayName,
-            config: formData.config
+            config: formData.config,
+            runTypeIds: formData.runTypeIds
         });
-        await loadTemplates();
+        await loadData();
         setSelectedTemplate(updated);
         setIsEditing(false);
       }
@@ -102,12 +111,21 @@ export default function TemplatesPage() {
 
     try {
       await API.deleteTemplate(selectedTemplate.id);
-      await loadTemplates();
+      await loadData();
       setSelectedTemplate(null);
       setIsEditing(false);
     } catch (e: any) {
       setError(e.response?.data?.error || e.message);
     }
+  };
+
+  const toggleRunType = (id: number) => {
+      const current = formData.runTypeIds;
+      if (current.includes(id)) {
+          setFormData({ ...formData, runTypeIds: current.filter(rid => rid !== id) });
+      } else {
+          setFormData({ ...formData, runTypeIds: [...current, id] });
+      }
   };
 
   return (
@@ -212,6 +230,30 @@ export default function TemplatesPage() {
                                 disabled={!isCreating && !isEditing}
                                 placeholder="e.g. Calibration V1"
                             />
+                        </div>
+
+                        <div className="mb-3">
+                            <label className="form-label text-muted">Associated Run Types</label>
+                            <div className="card bg-dark border-secondary p-2">
+                                {runTypes.length > 0 ? runTypes.map(rt => (
+                                    <div key={rt.id} className="form-check form-switch mb-2">
+                                        <input 
+                                            className="form-check-input" 
+                                            type="checkbox" 
+                                            id={`rt-${rt.id}`}
+                                            checked={formData.runTypeIds.includes(rt.id)}
+                                            onChange={() => toggleRunType(rt.id)}
+                                            disabled={!isCreating && !isEditing}
+                                        />
+                                        <label className="form-check-label" htmlFor={`rt-${rt.id}`}>
+                                            <strong>{rt.name}</strong>
+                                            {rt.description && <span className="text-muted ms-2 small">({rt.description})</span>}
+                                        </label>
+                                    </div>
+                                )) : (
+                                    <small className="text-muted">No run types defined in system.</small>
+                                )}
+                            </div>
                         </div>
 
                         <div className="mb-3 flex-grow-1 d-flex flex-column h-100">

@@ -10,16 +10,17 @@ export async function GET() {
   }
 }
 
+// POST start new run
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { description, clientId } = body;
+    const { description, clientId, runTypeId } = body;
 
     if (!description || !clientId) {
       return NextResponse.json({ error: 'Missing description or clientId' }, { status: 400 });
     }
 
-    const run = await RunController.startRun(description, clientId);
+    const run = await RunController.startRun(description, clientId, runTypeId);
     return NextResponse.json(run);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

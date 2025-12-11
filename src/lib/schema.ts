@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, boolean, json } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp, boolean, json, integer } from 'drizzle-orm/pg-core';
 
 // Runs table - tracks DAQ acquisition runs
 export const runs = pgTable('runs', {
@@ -10,6 +10,14 @@ export const runs = pgTable('runs', {
   daqJobIds: json('daq_job_ids').$type<string[]>(),
   config: text('config'),
   clientId: text('client_id'),
+  runTypeId: integer('run_type_id').references(() => runTypes.id),
+});
+
+// Run Types table - Defines types/modes of runs (e.g. Calibration, Physics)
+export const runTypes = pgTable('run_types', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  description: text('description'),
 });
 
 // Templates table - DAQ job configuration templates
@@ -24,8 +32,19 @@ export const templates = pgTable('templates', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+// Junction table for Many-to-Many relationship between Templates and RunTypes
+export const templateRunTypes = pgTable('template_run_types', {
+  templateId: integer('template_id').references(() => templates.id).notNull(),
+  runTypeId: integer('run_type_id').references(() => runTypes.id).notNull(),
+}, (t) => ({
+  pk: { columns: [t.templateId, t.runTypeId] },
+}));
+
 // Type exports
 export type Run = typeof runs.$inferSelect;
 export type NewRun = typeof runs.$inferInsert;
 export type Template = typeof templates.$inferSelect;
 export type NewTemplate = typeof templates.$inferInsert;
+export type RunType = typeof runTypes.$inferSelect;
+export type NewRunType = typeof runTypes.$inferInsert;
+export type TemplateRunType = typeof templateRunTypes.$inferSelect;

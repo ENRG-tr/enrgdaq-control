@@ -13,17 +13,24 @@ const RunDashboard = () => {
     clientOnline,
     clients,
     selectClient,
+    runTypes,
+    fetchRunTypes,
   } = useStore();
 
   const [description, setDescription] = useState('');
+  const [selectedRunTypeId, setSelectedRunTypeId] = useState<number | ''>('');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+
+  React.useEffect(() => {
+    fetchRunTypes();
+  }, [fetchRunTypes]);
 
   const handleStart = async () => {
     if (!description) return;
     setIsStarting(true);
     try {
-      await startRun(description);
+      await startRun(description, selectedRunTypeId ? Number(selectedRunTypeId) : undefined);
       setDescription('');
       toast.success('Acquisition started successfully');
     } catch (e: any) {
@@ -46,6 +53,11 @@ const RunDashboard = () => {
     } finally {
         setIsStopping(false);
     }
+  };
+
+  const getRunTypeName = (typeId: number | null) => {
+      if (!typeId) return '-';
+      return runTypes.find(rt => rt.id === typeId)?.name || 'Unknown';
   };
 
   return (
@@ -91,6 +103,7 @@ const RunDashboard = () => {
                   </div>
                   <h3 className="text-success fw-bold">ACQUISITION ACTIVE</h3>
                   <h5 className="text-light mt-3">Run ID: #{activeRun.id}</h5>
+                  <div className="badge bg-secondary mb-2">{getRunTypeName(activeRun.runTypeId)}</div>
                   <p className="text-muted lead">"{activeRun.description}"</p>
                   <div className="mt-4 w-100 px-5">
                     <button
@@ -134,6 +147,24 @@ const RunDashboard = () => {
             </div>
             <div className="card-body p-4">
               <div className="mb-4">
+                <label className="form-label text-muted">Run Type</label>
+                <select 
+                    className="form-select form-select-lg bg-dark text-light border-secondary"
+                    value={selectedRunTypeId}
+                    onChange={(e) => setSelectedRunTypeId(e.target.value === '' ? '' : Number(e.target.value))}
+                    disabled={!!activeRun || !clientOnline}
+                >
+                    <option value="" disabled>-- Select Run Type --</option>
+                    {runTypes.map(rt => (
+                        <option key={rt.id} value={rt.id}>{rt.name}</option>
+                    ))}
+                </select>
+                <div className="form-text">
+                   Select a run type to use specific templates.
+                </div>
+              </div>
+
+              <div className="mb-4">
                 <label className="form-label text-muted">
                   Experiment Description
                 </label>
@@ -162,7 +193,7 @@ const RunDashboard = () => {
               <button
                 onClick={handleStart}
                 disabled={
-                  !!activeRun || !clientOnline || !description || isStarting
+                  !!activeRun || !clientOnline || !description || isStarting || !selectedRunTypeId
                 }
                 className="btn btn-primary btn-lg w-100 mt-3"
               >
@@ -195,6 +226,7 @@ const RunDashboard = () => {
             <thead>
               <tr>
                 <th className="ps-4">ID</th>
+                <th>Type</th>
                 <th>Description</th>
                 <th>Start Time</th>
                 <th>Status</th>
@@ -208,6 +240,13 @@ const RunDashboard = () => {
                   className={run.status === 'RUNNING' ? 'table-active' : ''}
                 >
                   <td className="ps-4 font-monospace">#{run.id}</td>
+                  <td>
+                    {run.runTypeId ? (
+                        <span className="badge bg-info text-dark">{getRunTypeName(run.runTypeId)}</span>
+                    ) : (
+                        <span className="badge bg-secondary">Generic</span>
+                    )}
+                  </td>
                   <td>{run.description}</td>
                   <td>{new Date(run.startTime).toLocaleString()}</td>
                   <td>
@@ -226,7 +265,7 @@ const RunDashboard = () => {
               ))}
               {runs.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center py-4 text-muted">
+                  <td colSpan={6} className="text-center py-4 text-muted">
                     No runs recorded.
                   </td>
                 </tr>

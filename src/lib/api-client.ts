@@ -16,8 +16,15 @@ export interface Template {
   name: string;
   displayName: string;
   config: string;
-  source: string;
+  type: string;
   editable: boolean;
+  runTypeIds: number[];
+}
+
+export interface RunType {
+  id: number;
+  name: string;
+  description: string | null;
 }
 
 const api = axios.create({
@@ -34,9 +41,14 @@ export const API = {
     const { data } = await api.get('/runs');
     return data;
   },
+  
+  async getRunTypes(): Promise<RunType[]> {
+    const { data } = await api.get('/run-types');
+    return data;
+  },
 
-  async startRun(description: string, clientId: string): Promise<Run> {
-    const { data } = await api.post('/runs', { description, clientId });
+  async startRun(description: string, clientId: string, runTypeId?: number): Promise<Run> {
+    const { data } = await api.post('/runs', { description, clientId, runTypeId });
     return data;
   },
 
@@ -50,12 +62,12 @@ export const API = {
     return data;
   },
 
-  async createTemplate(createData: { name: string; displayName: string; config: string }): Promise<Template> {
+  async createTemplate(createData: { name: string; displayName: string; config: string; runTypeIds?: number[] }): Promise<Template> {
     const { data } = await api.post('/templates', createData);
     return data;
   },
 
-  async updateTemplate(id: number, updateData: { displayName?: string; config?: string }): Promise<Template> {
+  async updateTemplate(id: number, updateData: { displayName?: string; config?: string; runTypeIds?: number[] }): Promise<Template> {
     const { data } = await api.put(`/templates/${id}`, updateData);
     return data;
   },

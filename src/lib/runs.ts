@@ -1,16 +1,24 @@
 import { db } from './db';
-import { runs, templates, type Run, type NewRun } from './schema';
-import { eq, desc } from 'drizzle-orm';
+import { runs, templates, templateRunTypes, type Run, type NewRun } from './schema';
+import { eq, desc, and, count } from 'drizzle-orm';
 import { ENRGDAQClient } from './enrgdaq-client';
 
 const RUN_CONTROLLER_RUN_ALIVE_AFTER_MS = 2000;
 
 export class RunController {
   
-  static async getAllRuns(): Promise<Run[]> {
-    // Check liveness of any locally RUNNING run before returning
-    const active = await this.getActiveRun(); // This triggers the check
-    return await db.select().from(runs).orderBy(desc(runs.id));
+  static async getRuns(page: number = 1, limit: number = 10): Promise<{ runs: Run[], total: number }> {
+    const offset = (page - 1) * limit;
+
+    const [totalObj] = await db.select({ count: count() }).from(runs);
+    const total = totalObj.count;
+
+    const rows = await db.select().from(runs)
+        .orderBy(desc(runs.id))
+        .limit(limit)
+        .offset(offset);
+        
+    return { runs: rows, total };
   }
 
   static async getActiveRun(): Promise<Run | null> {
@@ -50,7 +58,7 @@ export class RunController {
     return run;
   }
 
-  static async startRun(description: string, clientId: string): Promise<Run> {
+  static async startRun(description: string, clientId: string, runTypeId?: number): Promise<Run> {
     // 1. Check if run exists
     const existing = await this.getActiveRun();
     if (existing) {
@@ -62,13 +70,14 @@ export class RunController {
       description,
       status: 'RUNNING',
       clientId,
+      runTypeId: runTypeId || null
     }).returning();
 
     // 3. Generate Configs from Templates
-    const runConfigs = await this.generateRunConfigs(run.id);
+    const runConfigs = await this.generateRunConfigs(run.id, runTypeId);
 
     if (runConfigs.length === 0) {
-        console.warn(`No templates with type="run" found for Run ${run.id}`);
+        console.warn(`No templates with type="run" found for Run ${run.id} (RunType: ${runTypeId})`);
     }
 
     const jobNames: string[] = [];
@@ -77,7 +86,7 @@ export class RunController {
     // 5. Start Jobs on CNC
     try {
         for (const rc of runConfigs) {
-            const uniqueJobName = `${rc.name}_run${run.id}`;
+            const uniqueJobName = `${rc.name}_run-${run.id}_${Date.now()}`;
             const configWithUtf8 = `daq_job_unique_id = "${uniqueJobName}"\n` + rc.config;
 
             await ENRGDAQClient.runJob(clientId, configWithUtf8);
@@ -144,18 +153,44 @@ export class RunController {
       .where(eq(runs.id, runId));
   }
 
-  private static async generateRunConfigs(runId: number): Promise<Array<{name: string, config: string}>> {
-    const runTemplates = await db.select().from(templates).where(eq(templates.type, 'run'));
-    
-    return runTemplates.map(t => {
-        let content = t.config;
-        // Simple replacements
-        content = content.replace(/\{RUN_ID\}/g, runId.toString());
+  private static async generateRunConfigs(runId: number, runTypeId?: number): Promise<Array<{name: string, config: string}>> {
+    let query = db.select({
+        name: templates.name,
+        config: templates.config
+    })
+    .from(templates)
+    .where(eq(templates.type, 'run'));
+
+    if (runTypeId) {
+        // Look up templates associated with this runTypeId via junction table
+        // We can use WHERE IN (subquery) or innerJoin
+        // Inner join is cleaner
+        const rows = await db.select({
+            name: templates.name,
+            config: templates.config
+        })
+        .from(templates)
+        .innerJoin(templateRunTypes, eq(templates.id, templateRunTypes.templateId))
+        .where(and(
+            eq(templates.type, 'run'),
+            eq(templateRunTypes.runTypeId, runTypeId)
+        ));
         
-        return {
+        return rows.map(t => ({
             name: t.name,
-            config: content
-        };
-    });
+            config: t.config.replace(/\{RUN_ID\}/g, runId.toString())
+        }));
+    }
+
+    // If no runTypeId, maybe we just return all 'run' templates? 
+    // Or only those NOT associated with any type?
+    // For safety, let's just return all 'run' templates if not filtered (legacy behavior)
+    // or maybe empty list if we want strict mode?
+    // Let's stick to legacy behavior: run ALL templates with type='run'.
+    const runTemplates = await query;
+    return runTemplates.map(t => ({
+        name: t.name,
+        config: t.config.replace(/\{RUN_ID\}/g, runId.toString())
+    }));
   }
 }
