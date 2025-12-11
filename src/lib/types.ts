@@ -1,9 +1,10 @@
 export interface Run {
   id: number;
   description: string;
-  startTime: string;
-  endTime?: string;
-  status: 'RUNNING' | 'COMPLETED' | 'STOPPED';
-  daqJobName?: string;
-  config?: string;
+  startTime: Date;
+  endTime: Date | null;
+  status: string;
+  daqJobName: string | null;
+  config: string | null;
+  clientId: string | null;
 }

@@ -122,5 +122,13 @@ export const API = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ daq_job_name: jobName, remove: true }),
       });
-  }
+  },
+
+  async getDAQJobSchemas(): Promise<Record<string, unknown>> {
+    const res = await fetch(`${ENRGDAQ_API_BASE}/templates/daqjobs`);
+    if (!res.ok) {
+      throw new Error('Failed to fetch DAQ job schemas');
+    }
+    return res.json();
+  },
 };

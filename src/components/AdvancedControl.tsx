@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { API, type LogEntry, type Template } from '@/lib/api-client';
+import TomlForm from './TomlForm';
 
 const AdvancedControl = () => {
   const {
@@ -151,7 +152,7 @@ const AdvancedControl = () => {
                     value={selectedTemplate}
                     onChange={handleTemplateChange}
                   >
-                    {templates.map((t) => (
+                    {Array.isArray(templates)  && templates.map((t) => (
                       <option key={t.name} value={t.name}>
                         {t.displayName} {t.source === 'custom' && '(Custom)'}
                       </option>
@@ -160,12 +161,11 @@ const AdvancedControl = () => {
                 )}
               </div>
               <div className="mb-3">
-                <textarea
-                  className="form-control bg-black text-warning border-secondary font-monospace"
-                  rows={10}
-                  value={customConfig}
-                  onChange={(e) => setCustomConfig(e.target.value)}
-                ></textarea>
+                <TomlForm
+                  initialToml={customConfig}
+                  onChange={setCustomConfig}
+                  disabled={!clientOnline}
+                />
               </div>
               <button
                 className="btn btn-primary w-100"
@@ -194,6 +194,7 @@ const AdvancedControl = () => {
                 {[]
                   .concat(logs as any)
                   .reverse()
+                  .filter((l: LogEntry) => l !== null)
                   .map((l: LogEntry, i) => (
                     <div key={i} className="log-entry">
                       <small className="text-muted">[{l.timestamp}]</small>{' '}
