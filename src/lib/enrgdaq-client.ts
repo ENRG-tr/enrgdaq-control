@@ -41,9 +41,12 @@ export class ENRGDAQClient {
     }
   }
 
-  static async stopJob(clientId: string, jobName: string) {
+  static async stopJob(clientId: string, uniqueId: string, remove: boolean) {
     try {
-        await api.post(`/clients/${clientId}/stop_daqjob`, { daq_job_name: jobName, remove: true });
+        await api.post(`/clients/${clientId}/stop_daqjob`, { 
+          daq_job_unique_id: uniqueId, 
+          remove 
+        });
     } catch (e: any) {
         throw new Error(`Failed to stop job: ${e.response?.data || e.message}`);
     }

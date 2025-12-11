@@ -86,8 +86,11 @@ export const API = {
       await api.post(`/clients/${clientId}/run_custom_daqjob`, { config });
   },
   
-  async stopJob(clientId: string, jobName: string) {
-      await api.post(`/clients/${clientId}/stop_daqjob`, { daq_job_name: jobName });
+  async stopJob(clientId: string, uniqueId: string, remove: boolean = false) {
+      await api.post(`/clients/${clientId}/stop_daqjob`, { 
+        daq_job_unique_id: uniqueId,
+        remove
+      });
   },
 
   async getDAQJobSchemas(): Promise<Record<string, unknown>> {

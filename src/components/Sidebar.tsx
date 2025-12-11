@@ -47,6 +47,11 @@ export default function Sidebar() {
           icon="fa-sliders"
           label="Advanced Control"
         />
+        <SidebarLink
+          href="/templates"
+          icon="fa-file-code"
+          label="Templates"
+        />
       </div>
 
       <div className="mt-auto p-3 border-top border-secondary text-muted small">

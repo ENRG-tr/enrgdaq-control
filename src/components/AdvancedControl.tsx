@@ -19,6 +19,8 @@ const AdvancedControl = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [customConfig, setCustomConfig] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingJobId, setEditingJobId] = useState<string | null>(null);
 
   // Fetch templates on mount
   useEffect(() => {
@@ -45,6 +47,40 @@ const AdvancedControl = () => {
     const template = templates.find(t => t.name === name);
     if (template) {
       setCustomConfig(template.config);
+    }
+  };
+
+  const handleEditConfig = (config: string, uniqueId: string) => {
+    setCustomConfig(config);
+    setEditingJobId(uniqueId);
+    setIsEditing(true);
+    setSelectedTemplate('');
+  };
+
+  const handleStopEditing = () => {
+    setIsEditing(false);
+    setEditingJobId(null);
+    if (templates.length > 0) {
+        const first = templates[0];
+        setSelectedTemplate(first.name);
+        setCustomConfig(first.config);
+    }
+  };
+
+  const handleExecute = async () => {
+    if (!selectedClient) return;
+    
+    try {
+        if (isEditing && editingJobId) {
+            await API.stopJob(selectedClient, editingJobId, true);
+        }
+        await API.runJob(selectedClient, customConfig);
+        if (isEditing) {
+             handleStopEditing();
+        }
+    } catch (e) {
+        console.error("Execution failed:", e);
+        alert("Execution failed: " + e);
     }
   };
 
@@ -112,15 +148,31 @@ const AdvancedControl = () => {
                           <p className="card-text text-muted small mb-3">
                             {job.unique_id}
                           </p>
-                          <button
-                            className="btn btn-sm btn-outline-danger w-100"
-                            onClick={() =>
-                              selectedClient &&
-                              API.stopJob(selectedClient, job.unique_id)
-                            }
-                          >
-                            Stop Process
-                          </button>
+                          <div className="d-grid gap-2">
+                             <button
+                                className="btn btn-sm btn-outline-info"
+                                onClick={() => {
+                                    if (job.config) {
+                                        handleEditConfig(job.config, job.unique_id);
+                                    } else {
+                                        alert("No configuration available for this job.");
+                                    }
+                                }}
+                             >
+                                <i className="fa-solid fa-pen-to-square pe-2"></i>
+                                Edit Config
+                             </button>
+                             <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() =>
+                                  selectedClient &&
+                                  API.stopJob(selectedClient, job.unique_id)
+                                }
+                              >
+                                <i className="fa-solid fa-stop pe-2"></i> 
+                                Stop Process
+                              </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -138,43 +190,56 @@ const AdvancedControl = () => {
         {/* Manual Job Launch */}
         <div className="col-lg-7">
           <div className="card h-100">
-            <div className="card-header fw-bold bg-dark border-secondary">
-              <i className="fa-solid fa-code me-2"></i>Manual Job Launcher
+            <div className={`card-header fw-bold border-secondary ${isEditing ? 'bg-warning text-dark' : 'bg-dark'}`}>
+              <i className={`fa-solid ${isEditing ? 'fa-pen-to-square' : 'fa-code'} me-2`}></i>
+              {isEditing ? 'Editing Run Configuration' : 'Manual Job Launcher'}
             </div>
             <div className="card-body">
-              <div className="mb-3">
-                <label className="form-label text-muted">Template</label>
-                {isLoading ? (
-                  <div className="text-muted">Loading templates...</div>
-                ) : (
-                  <select
-                    className="form-select bg-dark text-light border-secondary"
-                    value={selectedTemplate}
-                    onChange={handleTemplateChange}
-                  >
-                    {Array.isArray(templates)  && templates.map((t) => (
-                      <option key={t.name} value={t.name}>
-                        {t.displayName} {t.source === 'custom' && '(Custom)'}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
+              {!isEditing && (
+                <div className="mb-3">
+                    <label className="form-label text-muted">Template</label>
+                    {isLoading ? (
+                    <div className="text-muted">Loading templates...</div>
+                    ) : (
+                    <select
+                        className="form-select bg-dark text-light border-secondary"
+                        value={selectedTemplate}
+                        onChange={handleTemplateChange}
+                    >
+                        {Array.isArray(templates)  && templates.map((t) => (
+                        <option key={t.name} value={t.name}>
+                            {t.displayName} {t.source === 'custom' && '(Custom)'}
+                        </option>
+                        ))}
+                    </select>
+                    )}
+                </div>
+              )}
+
+              {isEditing && (
+                <div className="mb-3 d-flex justify-content-between align-items-center">
+                    <span className="text-warning small"><i className="fa-solid fa-circle-info me-1"></i>You are modifying a running configuration.</span>
+                    <button className="btn btn-sm btn-outline-secondary" onClick={handleStopEditing}>
+                        Cancel / Stop Editing
+                    </button>
+                </div>
+              )}
+
               <div className="mb-3">
                 <TomlForm
                   initialToml={customConfig}
                   onChange={setCustomConfig}
                   disabled={!clientOnline}
+                  disableJobType={isEditing}
                 />
               </div>
               <button
                 className="btn btn-primary w-100"
-                onClick={() =>
-                  selectedClient && API.runJob(selectedClient, customConfig)
-                }
+                onClick={handleExecute}
                 disabled={!clientOnline}
               >
-                <i className="fa-solid fa-terminal me-2"></i> Execute
+                <i className={`fa-solid ${isEditing ? 'fa-rotate' : 'fa-terminal'} me-2`}></i> 
+                {isEditing ? 'Terminate & Restart' : 'Execute'}
               </button>
             </div>
           </div>

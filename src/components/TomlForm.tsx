@@ -20,6 +20,7 @@ interface TomlFormProps {
   initialToml: string;
   onChange: (tomlString: string) => void;
   disabled?: boolean;
+  disableJobType?: boolean;
 }
 
 interface FormData {
@@ -55,9 +56,7 @@ const formatDescription = (text: string | undefined): React.ReactNode => {
 import validator from '@rjsf/validator-ajv8';
 import Form from '@rjsf/react-bootstrap';
 
-// ... (existing imports)
-
-const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = false }) => {
+const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = false, disableJobType = false }) => {
   const [schemas, setSchemas] = useState<ParsedSchemas | null>(null);
   // Store raw schemas for RJSF
   const [rawSchemas, setRawSchemas] = useState<Record<string, any> | null>(null);
@@ -255,7 +254,7 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
               className="form-select bg-dark text-light border-secondary"
               value={formData.daq_job_type}
               onChange={(e) => handleJobTypeChange(e.target.value)}
-              disabled={disabled}
+              disabled={disabled || disableJobType}
             >
               {jobTypes.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -291,8 +290,6 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
               </Form>
             </div>
           )}
-
-
 
         </div>
       )}

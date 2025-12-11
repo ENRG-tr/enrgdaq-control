@@ -8,8 +8,8 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { daq_job_name } = body;
-    await ENRGDAQClient.stopJob(id, daq_job_name);
+    const { daq_job_unique_id, remove } = body;
+    await ENRGDAQClient.stopJob(id, daq_job_unique_id, remove);
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
