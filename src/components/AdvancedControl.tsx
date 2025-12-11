@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { API, type LogEntry, type Template } from '@/lib/api-client';
 import TomlForm from './TomlForm';
+import toast from 'react-hot-toast';
 
 const AdvancedControl = () => {
   const {
@@ -21,6 +22,8 @@ const AdvancedControl = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [stoppingJobId, setStoppingJobId] = useState<string | null>(null);
 
   // Fetch templates on mount
   useEffect(() => {
@@ -67,20 +70,42 @@ const AdvancedControl = () => {
     }
   };
 
+  const handleStopJob = async (jobId: string) => {
+    if (!selectedClient) return;
+    setStoppingJobId(jobId);
+    try {
+        await API.stopJob(selectedClient, jobId);
+        toast.success('Job stopped successfully');
+    } catch (e: any) {
+        console.error("Failed to stop job:", e);
+        toast.error(`Failed to stop job: ${e.message || e}`);
+    } finally {
+        setStoppingJobId(null);
+    }
+  };
+
   const handleExecute = async () => {
     if (!selectedClient) return;
     
+    setIsExecuting(true);
     try {
         if (isEditing && editingJobId) {
             await API.stopJob(selectedClient, editingJobId, true);
         }
         await API.runJob(selectedClient, customConfig);
+        
+        // Confirmation
         if (isEditing) {
+             toast.success('Process updated successfully.');
              handleStopEditing();
+        } else {
+             toast.success('Process started successfully.');
         }
-    } catch (e) {
+    } catch (e: any) {
         console.error("Execution failed:", e);
-        alert("Execution failed: " + e);
+        toast.error(`Execution failed: ${e.message || e}`);
+    } finally {
+        setIsExecuting(false);
     }
   };
 
@@ -155,7 +180,7 @@ const AdvancedControl = () => {
                                     if (job.config) {
                                         handleEditConfig(job.config, job.unique_id);
                                     } else {
-                                        alert("No configuration available for this job.");
+                                        toast.error("No configuration available for this job.");
                                     }
                                 }}
                              >
@@ -164,13 +189,20 @@ const AdvancedControl = () => {
                              </button>
                              <button
                                 className="btn btn-sm btn-outline-danger"
-                                onClick={() =>
-                                  selectedClient &&
-                                  API.stopJob(selectedClient, job.unique_id)
-                                }
+                                onClick={() => handleStopJob(job.unique_id)}
+                                disabled={!!stoppingJobId}
                               >
-                                <i className="fa-solid fa-stop pe-2"></i> 
-                                Stop Process
+                                {stoppingJobId === job.unique_id ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        Stopping...
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="fa-solid fa-stop pe-2"></i> 
+                                        Stop Process
+                                    </>
+                                )}
                               </button>
                           </div>
                         </div>
@@ -236,10 +268,19 @@ const AdvancedControl = () => {
               <button
                 className="btn btn-primary w-100"
                 onClick={handleExecute}
-                disabled={!clientOnline}
+                disabled={!clientOnline || isExecuting}
               >
-                <i className={`fa-solid ${isEditing ? 'fa-rotate' : 'fa-terminal'} me-2`}></i> 
-                {isEditing ? 'Terminate & Restart' : 'Execute'}
+                {isExecuting ? (
+                    <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Processing...
+                    </>
+                ) : (
+                    <>
+                        <i className={`fa-solid ${isEditing ? 'fa-rotate' : 'fa-terminal'} me-2`}></i> 
+                        {isEditing ? 'Terminate & Restart' : 'Execute'}
+                    </>
+                )}
               </button>
             </div>
           </div>

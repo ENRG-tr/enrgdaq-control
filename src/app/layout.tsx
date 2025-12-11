@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Sidebar from '@/components/Sidebar';
 import GlobalPoller from '@/components/GlobalPoller';
+import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -33,6 +34,7 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} bg-dark text-light`}>
         <GlobalPoller />
+        <Toaster position="top-right" />
         <div className="container-fluid vh-100 d-flex flex-column overflow-hidden p-0">
           <div className="row g-0 flex-grow-1 h-100">
             {/* Sidebar */}
