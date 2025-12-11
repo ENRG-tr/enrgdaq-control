@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { useStore } from '@/lib/store';
+import toast from 'react-hot-toast';
 
 const RunDashboard = () => {
   const {
@@ -16,6 +17,7 @@ const RunDashboard = () => {
 
   const [description, setDescription] = useState('');
   const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
 
   const handleStart = async () => {
     if (!description) return;
@@ -23,16 +25,26 @@ const RunDashboard = () => {
     try {
       await startRun(description);
       setDescription('');
-    } catch (e) {
-      alert('Failed to start run: ' + e);
+      toast.success('Acquisition started successfully');
+    } catch (e: any) {
+      console.error("Failed to start run:", e);
+      toast.error('Failed to start run: ' + (e.message || e));
     } finally {
       setIsStarting(false);
     }
   };
 
   const handleStop = async () => {
-    if (confirm('Are you sure you want to stop the current acquisition?')) {
-      await stopRun();
+    if (!activeRun) return;
+    setIsStopping(true);
+    try {
+        await stopRun();
+        toast.success(`Run #${activeRun.id} stopped successfully`);
+    } catch (e: any) {
+        console.error("Failed to stop run:", e);
+        toast.error('Failed to stop run: ' + (e.message || e));
+    } finally {
+        setIsStopping(false);
     }
   };
 
@@ -84,8 +96,18 @@ const RunDashboard = () => {
                     <button
                       onClick={handleStop}
                       className="btn btn-danger btn-lg w-100 py-3 fw-bold"
+                      disabled={isStopping}
                     >
-                      <i className="fa-solid fa-stop me-2"></i> STOP RUN
+                      {isStopping ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            STOPPING...
+                          </>
+                      ) : (
+                          <>
+                            <i className="fa-solid fa-stop me-2"></i> STOP RUN
+                          </>
+                      )}
                     </button>
                   </div>
                 </>
@@ -144,7 +166,14 @@ const RunDashboard = () => {
                 }
                 className="btn btn-primary btn-lg w-100 mt-3"
               >
-                {isStarting ? 'Initializing...' : 'START RUN'}
+                {isStarting ? (
+                    <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Initializing...
+                    </>
+                ) : (
+                    'START RUN'
+                )}
               </button>
               {!clientOnline && (
                 <div className="text-danger mt-2 text-center small">

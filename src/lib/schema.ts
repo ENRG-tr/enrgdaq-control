@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, timestamp, boolean, json } from 'drizzle-orm/pg-core';
 
 // Runs table - tracks DAQ acquisition runs
 export const runs = pgTable('runs', {
@@ -7,7 +7,7 @@ export const runs = pgTable('runs', {
   startTime: timestamp('start_time').notNull().defaultNow(),
   endTime: timestamp('end_time'),
   status: text('status').notNull().default('RUNNING'), // RUNNING, COMPLETED, STOPPED
-  daqJobName: text('daq_job_name'),
+  daqJobIds: json('daq_job_ids').$type<string[]>(),
   config: text('config'),
   clientId: text('client_id'),
 });
@@ -18,7 +18,7 @@ export const templates = pgTable('templates', {
   name: text('name').notNull().unique(),
   displayName: text('display_name').notNull(),
   config: text('config').notNull(),
-  source: text('source').notNull().default('custom'), // 'builtin' or 'custom'
+  type: text('type').notNull().default('normal'), // 'normal' or 'run' or other
   editable: boolean('editable').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

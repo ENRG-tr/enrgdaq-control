@@ -8,6 +8,20 @@
       "when": 1765393973447,
       "tag": "0000_charming_wendigo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1765458142700,
+      "tag": "0001_giant_karnak",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1765459654030,
+      "tag": "0002_simple_sandman",
+      "breakpoints": true
     }
   ]
 }

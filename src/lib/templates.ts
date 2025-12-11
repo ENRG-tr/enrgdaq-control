@@ -18,7 +18,6 @@ export class TemplateController {
       name: data.name,
       displayName: data.displayName,
       config: data.config,
-      source: 'custom',
       editable: true,
     }).returning();
     return template;
