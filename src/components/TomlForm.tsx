@@ -25,15 +25,17 @@ interface TomlFormProps {
 interface StoreConfigEntry {
   id: string;
   type: string;
-  fields: Record<string, string | number | boolean>;
+  fields: Record<string, FieldValue>;
 }
+
+type FieldValue = string | number | boolean | string[] | Record<string, any>[];
 
 interface FormData {
   daq_job_type: string;
-  jobFields: Record<string, string | number | boolean>;
-  storeConfigKey: 'store_config' | 'waveform_store_config';
-  storeConfigs: StoreConfigEntry[];
-  remoteConfigFields: Record<string, string | number | boolean>;
+  jobFields: Record<string, FieldValue>;
+  // Dynamic store configs keyed by the store config property name (e.g., 'store_config', 'waveform_store_config', etc.)
+  storeConfigsByKey: Record<string, StoreConfigEntry[]>;
+  remoteConfigFields: Record<string, FieldValue>;
 }
 
 let storeConfigIdCounter = 0;
@@ -73,8 +75,7 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
   const [formData, setFormData] = useState<FormData>({
     daq_job_type: '',
     jobFields: {},
-    storeConfigKey: 'store_config',
-    storeConfigs: [],
+    storeConfigsByKey: {},
     remoteConfigFields: {},
   });
   const [showRawEditor, setShowRawEditor] = useState(false);
@@ -115,6 +116,12 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
   useEffect(() => {
     if (!schemas) return;
     
+    // Skip parsing if the incoming TOML matches what we last generated
+    // This means it's just our own changes echoed back from the parent
+    if (initialToml === rawToml) {
+      return;
+    }
+    
     try {
       const parsed = parseToml(initialToml);
       
@@ -123,35 +130,28 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
       const jobSchema = schemas.jobSchemas[daqJobType];
       
       // Extract job-specific fields
-      const jobFields: Record<string, string | number | boolean> = {};
+      const jobFields: Record<string, FieldValue> = {};
       if (jobSchema) {
         for (const field of jobSchema.fields) {
           if (parsed[field.name] !== undefined) {
-            jobFields[field.name] = parsed[field.name] as string | number | boolean;
+            jobFields[field.name] = parsed[field.name] as FieldValue;
           } else if (field.default !== undefined && field.default !== null) {
-            jobFields[field.name] = field.default;
+            jobFields[field.name] = field.default as FieldValue;
           }
         }
       }
       
-      // Extract store configs (can have multiple)
-      const storeConfigs: StoreConfigEntry[] = [];
-      let storeConfigKey: 'store_config' | 'waveform_store_config' = jobSchema?.storeConfigKey || 'store_config';
+      // Extract store configs (can have multiple) - separate arrays for each type
+      // Get which store config keys this job type supports (detected from schema)
+      const supportedStoreConfigKeys = jobSchema?.storeConfigKeys || [];
       
-      // Check for store_config or waveform_store_config
-      const storeConfig = parsed.store_config as TomlObject | undefined;
-      const waveformStoreConfig = parsed.waveform_store_config as TomlObject | undefined;
-      
-      const activeStoreConfig = storeConfigKey === 'waveform_store_config' ? waveformStoreConfig : storeConfig;
-      if (storeConfig) storeConfigKey = 'store_config';
-      if (waveformStoreConfig) storeConfigKey = 'waveform_store_config';
-      
-      if (activeStoreConfig) {
-        // Iterate through all store types that are configured
+      // Helper to parse store config entries from a TOML section
+      const parseStoreConfigSection = (config: TomlObject): StoreConfigEntry[] => {
+        const entries: StoreConfigEntry[] = [];
         for (const type of Object.keys(schemas.storeConfigSchemas)) {
-          if (activeStoreConfig[type]) {
-            const typeConfig = activeStoreConfig[type] as TomlObject;
-            const fields: Record<string, string | number | boolean> = {};
+          if (config[type]) {
+            const typeConfig = config[type] as TomlObject;
+            const fields: Record<string, FieldValue> = {};
             
             // Flatten nested objects (like remote_config) into dot-notation keys
             const flattenConfig = (obj: TomlObject, prefix = '') => {
@@ -160,30 +160,35 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
                 if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
                   flattenConfig(value as TomlObject, fullKey);
                 } else {
-                  fields[fullKey] = value as string | number | boolean;
+                  fields[fullKey] = value as FieldValue;
                 }
               }
             };
             flattenConfig(typeConfig);
             
-            storeConfigs.push({
+            entries.push({
               id: generateId(),
               type,
               fields,
             });
           }
         }
-      }
+        return entries;
+      };
       
-      // If no store configs found, add a default one
-      if (storeConfigs.length === 0) {
-        const storeTypes = Object.keys(schemas.storeConfigSchemas);
-        if (storeTypes.length > 0) {
-          storeConfigs.push({
-            id: generateId(),
-            type: storeTypes[0],
-            fields: {},
-          });
+      // Parse store configs dynamically based on supported keys
+      const storeConfigsByKey: Record<string, StoreConfigEntry[]> = {};
+      const storeTypes = Object.keys(schemas.storeConfigSchemas);
+      
+      for (const storeConfigKey of supportedStoreConfigKeys) {
+        const configSection = parsed[storeConfigKey] as TomlObject | undefined;
+        if (configSection) {
+          storeConfigsByKey[storeConfigKey] = parseStoreConfigSection(configSection);
+        }
+        
+        // Add default if empty and we have store types available
+        if ((!storeConfigsByKey[storeConfigKey] || storeConfigsByKey[storeConfigKey].length === 0) && storeTypes.length > 0) {
+          storeConfigsByKey[storeConfigKey] = [{ id: generateId(), type: storeTypes[0], fields: {} }];
         }
       }
       
@@ -201,8 +206,7 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
       setFormData({
         daq_job_type: daqJobType,
         jobFields,
-        storeConfigKey,
-        storeConfigs,
+        storeConfigsByKey,
         remoteConfigFields,
       });
       setRawToml(initialToml);
@@ -226,17 +230,19 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
       }
     }
     
-    // Add store configs (multiple)
-    if (data.storeConfigs.length > 0) {
+    // Helper to convert store configs array to TOML object
+    const buildStoreConfigObj = (configs: StoreConfigEntry[]): TomlObject => {
       const storeConfigObj: TomlObject = {};
-      for (const config of data.storeConfigs) {
+      for (const config of configs) {
         if (config.type) {
           // Unflatten dot-notation keys back into nested objects
-          const unflattenFields = (fields: Record<string, string | number | boolean>): TomlObject => {
+          const unflattenFields = (fields: Record<string, FieldValue>): TomlObject => {
             const result: TomlObject = {};
             for (const [key, value] of Object.entries(fields)) {
-              // Skip empty/undefined values
+              // Skip empty/undefined values (but not empty arrays)
               if (value === undefined || value === '') continue;
+              // Skip empty arrays
+              if (Array.isArray(value) && value.length === 0) continue;
               
               const parts = key.split('.');
               let current: TomlObject = result;
@@ -253,8 +259,17 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
           storeConfigObj[config.type] = unflattenFields(config.fields);
         }
       }
-      if (Object.keys(storeConfigObj).length > 0) {
-        tomlObj[data.storeConfigKey] = storeConfigObj;
+      return storeConfigObj;
+    };
+    
+    
+    // Add all store configs from storeConfigsByKey
+    for (const [storeConfigKey, configs] of Object.entries(data.storeConfigsByKey)) {
+      if (configs.length > 0) {
+        const storeConfigObj = buildStoreConfigObj(configs);
+        if (Object.keys(storeConfigObj).length > 0) {
+          tomlObj[storeConfigKey] = storeConfigObj;
+        }
       }
     }
     
@@ -299,99 +314,100 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
     if (!schemas) return;
     
     const jobSchema = schemas.jobSchemas[newType];
-    const newJobFields: Record<string, string | number | boolean> = {};
+    const newJobFields: Record<string, FieldValue> = {};
     
     if (jobSchema) {
       for (const field of jobSchema.fields) {
         if (field.default !== undefined && field.default !== null) {
-          newJobFields[field.name] = field.default;
+          newJobFields[field.name] = field.default as FieldValue;
         }
       }
     }
-    
-    // Reset store config key based on job type
-    const newStoreKey = jobSchema?.storeConfigKey || 'store_config';
-    
-    // Reset store configs
-    const storeTypes = Object.keys(schemas.storeConfigSchemas);
     
     updateFormData({
       daq_job_type: newType,
       jobFields: newJobFields,
-      storeConfigKey: newStoreKey,
-      storeConfigs: storeTypes.length > 0 ? [{
-        id: generateId(),
-        type: storeTypes[0],
-        fields: {},
-      }] : [],
+    });
+  };
+
+  // Helper to get store configs for a specific key
+  const getStoreConfigsForKey = (key: string): StoreConfigEntry[] => {
+    return formData.storeConfigsByKey[key] || [];
+  };
+
+  // Helper to update store configs for a specific key
+  const updateStoreConfigsForKey = (
+    key: string,
+    updater: (configs: StoreConfigEntry[]) => StoreConfigEntry[]
+  ) => {
+    updateFormData({ 
+      storeConfigsByKey: {
+        ...formData.storeConfigsByKey,
+        [key]: updater(formData.storeConfigsByKey[key] || []),
+      }
     });
   };
 
   // Add a new store config
-  const addStoreConfig = () => {
+  const addStoreConfig = (storeConfigKey: string) => {
     if (!schemas) return;
     
     const storeTypes = Object.keys(schemas.storeConfigSchemas);
+    const currentConfigs = getStoreConfigsForKey(storeConfigKey);
     // Find a store type not already in use
-    const usedTypes = new Set(formData.storeConfigs.map(c => c.type));
+    const usedTypes = new Set(currentConfigs.map((c: StoreConfigEntry) => c.type));
     const availableType = storeTypes.find(t => !usedTypes.has(t)) || storeTypes[0];
     
     if (availableType) {
-      updateFormData({
-        storeConfigs: [
-          ...formData.storeConfigs,
-          { id: generateId(), type: availableType, fields: {} },
-        ],
-      });
+      updateStoreConfigsForKey(storeConfigKey, (configs: StoreConfigEntry[]) => [
+        ...configs,
+        { id: generateId(), type: availableType, fields: {} },
+      ]);
     }
   };
 
   // Remove a store config
-  const removeStoreConfig = (id: string) => {
-    updateFormData({
-      storeConfigs: formData.storeConfigs.filter(c => c.id !== id),
-    });
+  const removeStoreConfig = (storeConfigKey: string, id: string) => {
+    updateStoreConfigsForKey(storeConfigKey, (configs: StoreConfigEntry[]) => 
+      configs.filter((c: StoreConfigEntry) => c.id !== id)
+    );
   };
 
   // Handle store config type change
-  const handleStoreTypeChange = (id: string, newType: string) => {
+  const handleStoreTypeChange = (storeConfigKey: string, id: string, newType: string) => {
     if (!schemas) return;
     
     const storeSchema = schemas.storeConfigSchemas[newType];
-    const newFields: Record<string, string | number | boolean> = {};
+    const newFields: Record<string, FieldValue> = {};
     
     if (storeSchema) {
       for (const field of storeSchema.fields) {
         if (field.default !== undefined && field.default !== null) {
-          newFields[field.name] = field.default;
+          newFields[field.name] = field.default as FieldValue;
         }
       }
     }
     
-    updateFormData({
-      storeConfigs: formData.storeConfigs.map(c =>
-        c.id === id ? { ...c, type: newType, fields: newFields } : c
-      ),
-    });
+    updateStoreConfigsForKey(storeConfigKey, (configs: StoreConfigEntry[]) => 
+      configs.map((c: StoreConfigEntry) => c.id === id ? { ...c, type: newType, fields: newFields } : c)
+    );
   };
 
   // Handle individual field changes
-  const handleJobFieldChange = (name: string, value: string | number | boolean) => {
+  const handleJobFieldChange = (name: string, value: FieldValue) => {
     updateFormData({
       jobFields: { ...formData.jobFields, [name]: value },
     });
   };
 
-  const handleStoreFieldChange = (id: string, name: string, value: string | number | boolean) => {
-    updateFormData({
-      storeConfigs: formData.storeConfigs.map(c =>
-        c.id === id ? { ...c, fields: { ...c.fields, [name]: value } } : c
-      ),
-    });
+  const handleStoreFieldChange = (storeConfigKey: string, id: string, name: string, value: FieldValue) => {
+    updateStoreConfigsForKey(storeConfigKey, (configs: StoreConfigEntry[]) => 
+      configs.map((c: StoreConfigEntry) => c.id === id ? { ...c, fields: { ...c.fields, [name]: value } } : c)
+    );
   };
 
   // Handle global remote_config field changes
-  const handleRemoteConfigFieldChange = (name: string, value: string | number | boolean) => {
+  const handleRemoteConfigFieldChange = (name: string, value: FieldValue) => {
     updateFormData({
       remoteConfigFields: { ...formData.remoteConfigFields, [name]: value },
     });
@@ -412,8 +428,8 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
   // Render a single field based on its definition
   const renderField = (
     field: FieldDefinition,
-    value: string | number | boolean | undefined,
-    onChangeHandler: (name: string, value: string | number | boolean) => void,
+    value: FieldValue | undefined,
+    onChangeHandler: (name: string, value: FieldValue) => void,
     keyPrefix: string = ''
   ) => {
     const fieldId = `${keyPrefix}field-${field.name}`;
@@ -422,6 +438,10 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
       case 'boolean':
         return (
           <div key={fieldId} className="col-md-6 mb-3">
+            <label className="form-label text-muted small d-block" htmlFor={fieldId}>
+              {field.label}
+              {field.required && <span className="text-danger ms-1">*</span>}
+            </label>
             <div className="form-check form-switch">
               <input
                 type="checkbox"
@@ -431,9 +451,8 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
                 onChange={(e) => onChangeHandler(field.name, e.target.checked)}
                 disabled={disabled}
               />
-              <label className="form-check-label text-light" htmlFor={fieldId}>
-                {field.label}
-                {field.required && <span className="text-danger ms-1">*</span>}
+              <label className="form-check-label text-muted small" htmlFor={fieldId}>
+                {Boolean(value) ? 'On' : 'Off'}
               </label>
             </div>
             {field.description && (
@@ -487,6 +506,122 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
             {field.description && (
               <small className="text-muted">{formatDescription(field.description)}</small>
             )}
+          </div>
+        );
+      
+      case 'array':
+        // Render array as comma-separated values input
+        // We need to handle the case where value is stored as array but displayed as string
+        const displayValue = Array.isArray(value) ? value.join(', ') : String(value || '');
+        return (
+          <div key={fieldId} className="col-md-6 mb-3">
+            <label className="form-label text-muted small" htmlFor={fieldId}>
+              {field.label}
+              {field.required && <span className="text-danger ms-1">*</span>}
+              <span className="badge bg-secondary ms-2" style={{ fontSize: '0.65em' }}>List</span>
+            </label>
+            <input
+              type="text"
+              className="form-control form-control-sm bg-dark text-light border-secondary"
+              id={fieldId}
+              defaultValue={displayValue}
+              placeholder="Enter comma-separated values"
+              onChange={(e) => {
+                // Store the raw input as-is (allows typing commas)
+                // Parse on blur, but for immediate updates use raw string split
+                const inputValue = e.target.value;
+                // Split and keep non-empty parts for the data structure
+                const parts = inputValue.split(',').map(s => s.trim()).filter(s => s !== '');
+                onChangeHandler(field.name, parts);
+              }}
+              disabled={disabled}
+            />
+            {field.description && (
+              <small className="text-muted">{formatDescription(field.description)}</small>
+            )}
+            <small className="text-info d-block">Comma-separated values</small>
+          </div>
+        );
+
+      case 'arrayOfObjects':
+        const items = Array.isArray(value) ? value as Record<string, FieldValue>[] : [];
+        const itemLabel = field.objectSchemaName || 'Item';
+        
+        return (
+          <div key={fieldId} className="col-12 mb-3">
+             <div className="d-flex justify-content-between align-items-center mb-2">
+              <label className="form-label text-muted small mb-0" htmlFor={fieldId}>
+                {field.label}
+                {field.required && <span className="text-danger ms-1">*</span>}
+              </label>
+              <button
+                className="btn btn-xs btn-outline-success"
+                onClick={() => {
+                  const newItem: Record<string, FieldValue> = {};
+                  // Initialize with defaults if available
+                  if (field.objectFields) {
+                    for (const f of field.objectFields) {
+                      if (f.default !== undefined && f.default !== null) {
+                        newItem[f.name] = f.default as any;
+                      }
+                    }
+                  }
+                  onChangeHandler(field.name, [...items, newItem]);
+                }}
+                disabled={disabled}
+                type="button"
+              >
+                <i className="fa-solid fa-plus me-1"></i> Add {itemLabel}
+              </button>
+            </div>
+            
+            {field.description && (
+              <small className="text-muted d-block mb-2">{formatDescription(field.description)}</small>
+            )}
+
+            <div className="d-flex flex-column gap-3">
+              {items.map((item, index) => (
+                <div key={`${fieldId}-item-${index}`} className="card bg-dark border-secondary">
+                  <div className="card-header py-1 px-3 d-flex justify-content-between align-items-center bg-black bg-opacity-25">
+                     <span className="small text-muted">{itemLabel} #{index + 1}</span>
+                     <button
+                        className="btn btn-xs text-danger p-0"
+                        onClick={() => {
+                          const newItems = [...items];
+                          newItems.splice(index, 1);
+                          onChangeHandler(field.name, newItems);
+                        }}
+                        disabled={disabled}
+                        type="button"
+                        title="Remove item"
+                      >
+                        <i className="fa-solid fa-times"></i>
+                      </button>
+                  </div>
+                  <div className="card-body p-3">
+                    <div className="row">
+                      {field.objectFields?.map((subField) => 
+                        renderField(
+                          subField,
+                          item[subField.name],
+                          (subName, subValue) => {
+                             const newItems = [...items];
+                             newItems[index] = { ...newItems[index], [subName]: subValue };
+                             onChangeHandler(field.name, newItems);
+                          },
+                          `${fieldId}-${index}-`
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {items.length === 0 && (
+                <div className="text-center text-muted small py-3 border border-secondary border-dashed rounded bg-black bg-opacity-25">
+                   No items added.
+                </div>
+              )}
+            </div>
           </div>
         );
       
@@ -548,8 +683,6 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
 
   const jobSchema = schemas.jobSchemas[formData.daq_job_type];
   const storeTypes = Object.keys(schemas.storeConfigSchemas);
-  const usedStoreTypes = new Set(formData.storeConfigs.map(c => c.type));
-  const canAddMoreStores = storeTypes.some(t => !usedStoreTypes.has(t));
   const jobTypes = getJobTypes(schemas);
 
   if (parseError && !showRawEditor) {
@@ -645,112 +778,144 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
             </div>
           )}
 
-          {/* Store Config Section */}
-          <div className="mb-3">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <span className="badge bg-success">
-                <i className="fa-solid fa-database me-1"></i>
-                Store Configurations
-              </span>
-              <div className="d-flex align-items-center gap-2">
-                <select
-                  className="form-select form-select-sm bg-dark text-light border-secondary"
-                  style={{ width: 'auto' }}
-                  value={formData.storeConfigKey}
-                  onChange={(e) => updateFormData({ storeConfigKey: e.target.value as 'store_config' | 'waveform_store_config' })}
-                  disabled={disabled}
-                >
-                  <option value="store_config">store_config</option>
-                  <option value="waveform_store_config">waveform_store_config</option>
-                </select>
-                <button
-                  className="btn btn-sm btn-outline-success"
-                  onClick={addStoreConfig}
-                  disabled={disabled || !canAddMoreStores}
-                  title={canAddMoreStores ? 'Add store configuration' : 'All store types are already added'}
-                >
-                  <i className="fa-solid fa-plus me-1"></i>
-                  Add Store
-                </button>
-              </div>
-            </div>
+          {/* Store Config Sections - render each supported store config key */}
+          {(jobSchema?.storeConfigKeys || ['store_config']).map((storeConfigKey) => {
+            const configs = getStoreConfigsForKey(storeConfigKey);
+            const usedTypes = new Set(configs.map((c: StoreConfigEntry) => c.type));
+            const canAddMore = storeTypes.some(t => !usedTypes.has(t));
+            const sectionLabel = storeConfigKey === 'waveform_store_config' 
+              ? 'Waveform Store Configurations' 
+              : 'Store Configurations';
             
-            {/* Multiple Store Configs */}
-            {formData.storeConfigs.map((config, index) => {
-              const storeSchema = schemas.storeConfigSchemas[config.type];
-              return (
-                <div key={config.id} className="card bg-black border-secondary mb-3">
-                  <div className="card-header d-flex justify-content-between align-items-center py-2 bg-dark border-secondary">
-                    <div className="d-flex align-items-center gap-2">
-                      <span className="badge bg-secondary">{index + 1}</span>
-                      <select
-                        className="form-select form-select-sm bg-dark text-light border-secondary"
-                        style={{ width: 'auto' }}
-                        value={config.type}
-                        onChange={(e) => handleStoreTypeChange(config.id, e.target.value)}
-                        disabled={disabled}
-                      >
-                        {storeTypes.map((type) => {
-                          const schema = schemas.storeConfigSchemas[type];
-                          const isUsed = usedStoreTypes.has(type) && type !== config.type;
-                          return (
-                            <option key={type} value={type} disabled={isUsed}>
-                              {schema?.label || type} {isUsed ? '(in use)' : ''}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      {storeSchema?.description && (
-                        <small className="text-muted ms-2">{formatDescription(storeSchema.description)}</small>
-                      )}
-                    </div>
-                    <button
-                      className="btn btn-sm btn-outline-danger"
-                      onClick={() => removeStoreConfig(config.id)}
-                      disabled={disabled || formData.storeConfigs.length <= 1}
-                      title="Remove this store configuration"
-                    >
-                      <i className="fa-solid fa-trash"></i>
-                    </button>
-                  </div>
-                  <div className="card-body py-3">
-                    {storeSchema && storeSchema.fields.length > 0 ? (
-                      <div className="row">
-                        {storeSchema.fields.map((field) =>
-                          renderField(
-                            field,
-                            config.fields[field.name],
-                            (name, value) => handleStoreFieldChange(config.id, name, value),
-                            `${config.id}-`
-                          )
+            return (
+              <div key={storeConfigKey} className="mb-3">
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <span className="badge bg-success">
+                    <i className="fa-solid fa-database me-1"></i>
+                    {sectionLabel}
+                  </span>
+                  <button
+                    className="btn btn-sm btn-outline-success"
+                    onClick={() => addStoreConfig(storeConfigKey)}
+                    disabled={disabled || !canAddMore}
+                    title={canAddMore ? 'Add store configuration' : 'All store types are already added'}
+                  >
+                    <i className="fa-solid fa-plus me-1"></i>
+                    Add Store
+                  </button>
+                </div>
+                
+                {/* Store Config Cards */}
+                {configs.map((config: StoreConfigEntry, index: number) => {
+                  const storeSchema = schemas.storeConfigSchemas[config.type];
+                  return (
+                    <div key={config.id} className="card bg-black border-secondary mb-3">
+                      <div className="card-header d-flex justify-content-between align-items-center py-2 bg-dark border-secondary">
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="badge bg-secondary">{index + 1}</span>
+                          <select
+                            className="form-select form-select-sm bg-dark text-light border-secondary"
+                            style={{ width: 'auto' }}
+                            value={config.type}
+                            onChange={(e) => handleStoreTypeChange(storeConfigKey, config.id, e.target.value)}
+                            disabled={disabled}
+                          >
+                            {storeTypes.map((type) => {
+                              const schema = schemas.storeConfigSchemas[type];
+                              const isUsed = usedTypes.has(type) && type !== config.type;
+                              return (
+                                <option key={type} value={type} disabled={isUsed}>
+                                  {schema?.label || type} {isUsed ? '(in use)' : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          {storeSchema?.description && (
+                            <small className="text-muted ms-2">{formatDescription(storeSchema.description)}</small>
+                          )}
+                        </div>
+                        <button
+                          className="btn btn-sm btn-outline-danger"
+                          onClick={() => removeStoreConfig(storeConfigKey, config.id)}
+                          disabled={disabled || configs.length <= 1}
+                          title="Remove this store configuration"
+                        >
+                          <i className="fa-solid fa-trash"></i>
+                        </button>
+                      </div>
+                      <div className="card-body py-3">
+                        {storeSchema && storeSchema.fields.length > 0 ? (
+                          <>
+                            {/* Regular fields (non-remote_config) */}
+                            {storeSchema.fields.filter(f => !f.name.startsWith('remote_config.')).length > 0 && (
+                              <div className="row">
+                                {storeSchema.fields
+                                  .filter(field => !field.name.startsWith('remote_config.'))
+                                  .map((field) =>
+                                    renderField(
+                                      field,
+                                      config.fields[field.name],
+                                      (name, value) => handleStoreFieldChange(storeConfigKey, config.id, name, value),
+                                      `${config.id}-`
+                                    )
+                                  )}
+                              </div>
+                            )}
+                            
+                            {/* Remote Config fields separator and section */}
+                            {storeSchema.fields.filter(f => f.name.startsWith('remote_config.')).length > 0 && (
+                              <>
+                                <div className="d-flex align-items-center my-3">
+                                  <hr className="flex-grow-1 border-secondary opacity-50" />
+                                  <span className="badge bg-info bg-opacity-25 text-info mx-2">
+                                    <i className="fa-solid fa-satellite-dish me-1"></i>
+                                    Remote Config
+                                  </span>
+                                  <hr className="flex-grow-1 border-secondary opacity-50" />
+                                </div>
+                                <div className="row">
+                                  {storeSchema.fields
+                                    .filter(field => field.name.startsWith('remote_config.'))
+                                    .map((field) =>
+                                      renderField(
+                                        field,
+                                        config.fields[field.name],
+                                        (name, value) => handleStoreFieldChange(storeConfigKey, config.id, name, value),
+                                        `${config.id}-`
+                                      )
+                                    )}
+                                </div>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <div className="text-muted small">
+                            <i className="fa-solid fa-info-circle me-1"></i>
+                            No additional configuration required.
+                          </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="text-muted small">
-                        <i className="fa-solid fa-info-circle me-1"></i>
-                        No additional configuration required.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                    </div>
+                  );
+                })}
 
-            {formData.storeConfigs.length === 0 && (
-              <div className="text-center text-muted py-3 border border-secondary rounded">
-                <i className="fa-solid fa-database fa-2x mb-2 opacity-50"></i>
-                <p className="mb-2">No store configurations added</p>
-                <button
-                  className="btn btn-sm btn-outline-success"
-                  onClick={addStoreConfig}
-                  disabled={disabled}
-                >
-                  <i className="fa-solid fa-plus me-1"></i>
-                  Add Store Configuration
-                </button>
+                {configs.length === 0 && (
+                  <div className="text-center text-muted py-3 border border-secondary rounded">
+                    <i className="fa-solid fa-database fa-2x mb-2 opacity-50"></i>
+                    <p className="mb-2">No store configurations added</p>
+                    <button
+                      className="btn btn-sm btn-outline-success"
+                      onClick={() => addStoreConfig(storeConfigKey)}
+                      disabled={disabled}
+                    >
+                      <i className="fa-solid fa-plus me-1"></i>
+                      Add Store Configuration
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })}
 
           {/* Global Remote Config Section */}
           {jobSchema?.remoteConfigFields && jobSchema.remoteConfigFields.length > 0 && (

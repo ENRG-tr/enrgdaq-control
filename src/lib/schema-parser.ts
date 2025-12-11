@@ -5,13 +5,16 @@
 
 export interface FieldDefinition {
   name: string;
-  type: 'string' | 'number' | 'boolean' | 'select' | 'object';
+  type: 'string' | 'number' | 'boolean' | 'select' | 'object' | 'array' | 'arrayOfObjects';
   label: string;
   description?: string;
   required?: boolean;
-  default?: string | number | boolean | null;
+  default?: string | number | boolean | null | string[] | unknown[];
   options?: { value: string; label: string }[];
   nullable?: boolean;
+  arrayItemType?: 'string' | 'number';  // For simple array fields (list[str], list[int])
+  objectFields?: FieldDefinition[];      // For arrayOfObjects, the fields of each item
+  objectSchemaName?: string;             // The schema name for display purposes
 }
 
 export interface StoreConfigSchema {
@@ -27,7 +30,8 @@ export interface DAQJobSchema {
   description?: string;
   fields: FieldDefinition[];
   requiredFields: string[];
-  storeConfigKey: 'store_config' | 'waveform_store_config';
+  // Array of store config property names detected from schema (properties that reference DAQJobStoreConfig)
+  storeConfigKeys: string[];
   remoteConfigFields: FieldDefinition[];
 }
 
@@ -108,6 +112,12 @@ function getFieldType(schema: JSONSchema, defs: Record<string, JSONSchema>): Fie
     case 'integer':
     case 'number':
       return 'number';
+    case 'array':
+      // Check if it's an array of objects (has items with $ref)
+      if (schema.items?.$ref) {
+        return 'arrayOfObjects';
+      }
+      return 'array';
     case 'object':
       return 'object';
     default:
@@ -182,6 +192,63 @@ function getDescription(schema: JSONSchema, defs: Record<string, JSONSchema>): s
 function parseField(name: string, schema: JSONSchema, required: boolean, defs: Record<string, JSONSchema>): FieldDefinition {
   const fieldType = getFieldType(schema, defs);
   
+  // Detect array item type or object fields
+  let arrayItemType: 'string' | 'number' | undefined;
+  let objectFields: FieldDefinition[] | undefined;
+  let objectSchemaName: string | undefined;
+
+  if (fieldType === 'array') {
+    // Get the actual schema (resolve anyOf if needed)
+    let arraySchema = schema;
+    if (schema.anyOf) {
+      arraySchema = schema.anyOf.find(s => s.type === 'array') || schema;
+    }
+    if (schema.$ref) {
+      arraySchema = resolveRef(schema.$ref, defs) || schema;
+    }
+    
+    if (arraySchema.items) {
+      const itemType = Array.isArray(arraySchema.items.type) 
+        ? arraySchema.items.type[0] 
+        : arraySchema.items.type;
+      if (itemType === 'integer' || itemType === 'number') {
+        arrayItemType = 'number';
+      } else {
+        arrayItemType = 'string';
+      }
+    } else {
+      arrayItemType = 'string'; // Default to string array
+    }
+  } else if (fieldType === 'arrayOfObjects') {
+    // Resolve the item schema
+    let arraySchema = schema;
+    if (schema.anyOf) {
+      arraySchema = schema.anyOf.find(s => s.type === 'array' || (s.items && s.items.$ref)) || schema;
+    }
+    
+    if (arraySchema.items && arraySchema.items.$ref) {
+      const refName = arraySchema.items.$ref.replace('#/$defs/', '');
+      objectSchemaName = toLabel(refName);
+      const itemSchema = resolveRef(arraySchema.items.$ref, defs);
+      
+      if (itemSchema && itemSchema.properties) {
+        objectFields = [];
+        const requiredFields = new Set(itemSchema.required || []);
+        
+        for (const [propName, propSchema] of Object.entries(itemSchema.properties)) {
+          // Prevent infinite recursion by skipping complex nested objects inside the array item for now
+          // We can expand this later if needed
+          const propType = getFieldType(propSchema, defs);
+          if (propType === 'object' || propType === 'arrayOfObjects') {
+            continue;
+          }
+           
+          objectFields.push(parseField(propName, propSchema, requiredFields.has(propName), defs));
+        }
+      }
+    }
+  }
+  
   return {
     name,
     type: fieldType,
@@ -191,6 +258,9 @@ function parseField(name: string, schema: JSONSchema, required: boolean, defs: R
     default: schema.default as FieldDefinition['default'],
     options: getEnumOptions(schema, defs),
     nullable: isNullable(schema),
+    arrayItemType,
+    objectFields,
+    objectSchemaName,
   };
 }
 
@@ -301,16 +371,37 @@ function parseJobSchema(jobType: string, data: { $ref: string; $defs: Record<str
   const fields: FieldDefinition[] = [];
   const requiredFields = new Set(mainConfig.required || []);
   
-  // Determine store config key based on job type
-  // CAEN digitizers use waveform_store_config
-  const hasWaveformStore = 'waveform_store_config' in mainConfig.properties;
-  const storeConfigKey: 'store_config' | 'waveform_store_config' = hasWaveformStore 
-    ? 'waveform_store_config' 
-    : 'store_config';
+  // Detect store config keys dynamically by finding properties that reference DAQJobStoreConfig
+  const storeConfigKeys: string[] = [];
+  const storeConfigRefPattern = '#/$defs/DAQJobStoreConfig';
+  
+  // Helper to check if a property references DAQJobStoreConfig (directly or via anyOf)
+  const isStoreConfigProperty = (propSchema: JSONSchema): boolean => {
+    // Direct reference
+    if (propSchema.$ref === storeConfigRefPattern) {
+      return true;
+    }
+    // Check anyOf (for optional store configs like "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/DAQJobStoreConfig" }])
+    if (propSchema.anyOf) {
+      return propSchema.anyOf.some(option => option.$ref === storeConfigRefPattern);
+    }
+    return false;
+  };
   
   for (const [propName, propSchema] of Object.entries(mainConfig.properties)) {
-    // Skip meta fields and store configs (handled separately)
-    if (['daq_job_type', 'store_config', 'waveform_store_config', 'remote_config', 'verbosity'].includes(propName)) {
+    // Check if this property references DAQJobStoreConfig (directly or via anyOf)
+    if (isStoreConfigProperty(propSchema)) {
+      storeConfigKeys.push(propName);
+      continue; // Skip adding to regular fields
+    }
+    
+    // Skip meta fields and remote_config (handled separately)
+    if (['daq_job_type', 'remote_config', 'verbosity'].includes(propName)) {
+      continue;
+    }
+    
+    // Skip properties already identified as store configs
+    if (storeConfigKeys.includes(propName)) {
       continue;
     }
     
@@ -333,7 +424,7 @@ function parseJobSchema(jobType: string, data: { $ref: string; $defs: Record<str
     description: mainConfig.description,
     fields,
     requiredFields: Array.from(requiredFields),
-    storeConfigKey,
+    storeConfigKeys,
     remoteConfigFields,
   };
 }
