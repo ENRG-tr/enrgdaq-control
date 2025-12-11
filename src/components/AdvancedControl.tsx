@@ -24,6 +24,8 @@ const AdvancedControl = () => {
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [stoppingJobId, setStoppingJobId] = useState<string | null>(null);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const [isStoppingAll, setIsStoppingAll] = useState(false);
 
   // Fetch templates on mount
   useEffect(() => {
@@ -109,6 +111,34 @@ const AdvancedControl = () => {
     }
   };
 
+  const handleRestartDaq = async () => {
+    if (!selectedClient) return;
+    setIsRestarting(true);
+    try {
+        await API.restartDaq(selectedClient);
+        toast.success('DAQ restarted successfully');
+    } catch (e: any) {
+        console.error("Failed to restart DAQ:", e);
+        toast.error(`Failed to restart DAQ: ${e.message || e}`);
+    } finally {
+        setIsRestarting(false);
+    }
+  };
+
+  const handleStopAllJobs = async () => {
+    if (!selectedClient) return;
+    setIsStoppingAll(true);
+    try {
+        await API.stopAllJobs(selectedClient);
+        toast.success('All jobs stopped successfully');
+    } catch (e: any) {
+        console.error("Failed to stop all jobs:", e);
+        toast.error(`Failed to stop all jobs: ${e.message || e}`);
+    } finally {
+        setIsStoppingAll(false);
+    }
+  };
+
   const activeJobs = clientStatus?.daq_jobs || [];
 
   return (
@@ -132,17 +162,35 @@ const AdvancedControl = () => {
           <div className="btn-group">
             <button
               className="btn btn-outline-warning"
-              onClick={() => selectedClient && API.restartDaq(selectedClient)}
-              disabled={!clientOnline}
+              onClick={handleRestartDaq}
+              disabled={!clientOnline || isRestarting}
             >
-              <i className="fa-solid fa-rotate-right"></i> Restart DAQ
+              {isRestarting ? (
+                 <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Restarting...
+                 </>
+              ) : (
+                 <>
+                    <i className="fa-solid fa-rotate-right me-2"></i> Restart DAQ
+                 </>
+              )}
             </button>
             <button
               className="btn btn-outline-danger"
-              onClick={() => selectedClient && API.stopAllJobs(selectedClient)}
-              disabled={!clientOnline}
+              onClick={handleStopAllJobs}
+              disabled={!clientOnline || isStoppingAll}
             >
-              <i className="fa-solid fa-stop"></i> Stop All
+              {isStoppingAll ? (
+                 <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Stopping...
+                 </>
+              ) : (
+                 <>
+                    <i className="fa-solid fa-stop me-2"></i> Stop All
+                 </>
+              )}
             </button>
           </div>
         </div>
