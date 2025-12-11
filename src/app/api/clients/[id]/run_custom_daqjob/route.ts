@@ -1,0 +1,17 @@
+import { NextResponse } from 'next/server';
+import { ENRGDAQClient } from '@/lib/enrgdaq-client';
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { config } = body;
+    await ENRGDAQClient.runJob(id, config);
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}

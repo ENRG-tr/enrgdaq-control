@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import Sidebar from '@/components/Sidebar';
+import GlobalPoller from '@/components/GlobalPoller';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -31,6 +32,7 @@ export default function RootLayout({
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glyphicons-halflings@1.9.1/css/glyphicons-halflings.min.css" />
       </head>
       <body className={`${inter.className} bg-dark text-light`}>
+        <GlobalPoller />
         <div className="container-fluid vh-100 d-flex flex-column overflow-hidden p-0">
           <div className="row g-0 flex-grow-1 h-100">
             {/* Sidebar */}
