@@ -15,6 +15,10 @@ const RunDashboard = () => {
     selectClient,
     runTypes,
     fetchRunTypes,
+    runsTotal,
+    runsPage,
+    runsLimit,
+    setRunsPage,
   } = useStore();
 
   const [description, setDescription] = useState('');
@@ -218,8 +222,9 @@ const RunDashboard = () => {
 
       {/* History Table */}
       <div className="card">
-        <div className="card-header fw-bold">
-          <i className="fa-solid fa-clock-rotate-left me-2"></i>Run History
+        <div className="card-header fw-bold d-flex justify-content-between align-items-center">
+            <span><i className="fa-solid fa-clock-rotate-left me-2"></i>Run History</span>
+            <span className="badge bg-secondary">{runsTotal} Runs</span>
         </div>
         <div className="card-body p-0">
           <table className="table table-dark table-hover mb-0">
@@ -272,6 +277,29 @@ const RunDashboard = () => {
               )}
             </tbody>
           </table>
+          
+          {/* Pagination */}
+          {runsTotal > runsLimit && (
+              <div className="d-flex justify-content-between align-items-center p-3 border-top border-secondary">
+                  <button 
+                      className="btn btn-sm btn-outline-secondary" 
+                      disabled={runsPage === 1}
+                      onClick={() => setRunsPage(runsPage - 1)}
+                  >
+                      <i className="fa-solid fa-chevron-left me-1"></i> Prev
+                  </button>
+                  <span className="text-muted small">
+                      Page {runsPage} of {Math.ceil(runsTotal / runsLimit)}
+                  </span>
+                  <button 
+                      className="btn btn-sm btn-outline-secondary" 
+                      disabled={runsPage >= Math.ceil(runsTotal / runsLimit)}
+                      onClick={() => setRunsPage(runsPage + 1)}
+                  >
+                      Next <i className="fa-solid fa-chevron-right ms-1"></i>
+                  </button>
+              </div>
+          )}
         </div>
       </div>
     </div>

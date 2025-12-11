@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { RunController } from '@/lib/runs';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const runs = await RunController.getAllRuns();
-    return NextResponse.json(runs);
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const offset = (page - 1) * limit;
+
+    const data = await RunController.getAllRuns(limit, offset);
+    return NextResponse.json(data);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

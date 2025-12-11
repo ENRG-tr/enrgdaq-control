@@ -12,6 +12,9 @@ interface AppState {
 
   // Run State
   runs: Run[];
+  runsTotal: number;
+  runsPage: number;
+  runsLimit: number;
   activeRun: Run | null;
   runTypes: RunType[];
 
@@ -23,6 +26,7 @@ interface AppState {
   startRun: (description: string, runTypeId?: number) => Promise<void>;
   stopRun: () => Promise<void>;
   fetchRuns: () => Promise<void>;
+  setRunsPage: (page: number) => void;
   fetchRunTypes: () => Promise<void>;
 }
 
@@ -34,6 +38,9 @@ export const useStore = create<AppState>((set, get) => ({
   logs: [],
 
   runs: [],
+  runsTotal: 0,
+  runsPage: 1,
+  runsLimit: 10,
   activeRun: null,
   runTypes: [],
 
@@ -63,19 +70,29 @@ export const useStore = create<AppState>((set, get) => ({
         const status = await API.getStatus(selectedClient);
         const newLogs = await API.getLogs(selectedClient);
         set({ clientOnline: true, clientStatus: status, logs: newLogs });
+        
+        // Also refresh runs periodically to check status updates?
+        // Actually fetchRuns is called manually or by actions. 
+        // Polling dashboard usually refreshes runs too or we rely on websockets/events?
+        // The existing code did NOT poll fetchRuns inside pollClientStatus, so I leave it.
     } catch (e) {
         set({ clientOnline: false, clientStatus: null });
     }
   },
 
   fetchRuns: async () => {
+    const { runsPage, runsLimit } = get();
     try {
-        const runs = await API.getRuns();
-        const running = runs.find((r) => r.status === 'RUNNING');
-        set({ runs, activeRun: running || null });
+        const { runs, total, activeRun } = await API.getRuns(runsPage, runsLimit);
+        set({ runs, runsTotal: total, activeRun });
     } catch(e) {
         console.error("Failed to fetch runs", e);
     }
+  },
+
+  setRunsPage: (page: number) => {
+    set({ runsPage: page });
+    get().fetchRuns();
   },
 
   fetchRunTypes: async () => {
@@ -91,6 +108,7 @@ export const useStore = create<AppState>((set, get) => ({
     const { selectedClient } = get();
     if (!selectedClient) throw new Error('No client selected');
     await API.startRun(description, selectedClient, runTypeId);
+    set({ runsPage: 1 }); // Reset to first page on new run
     await get().fetchRuns();
   },
 

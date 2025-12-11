@@ -37,8 +37,8 @@ export const API = {
     return data;
   },
 
-  async getRuns(): Promise<Run[]> {
-    const { data } = await api.get('/runs');
+  async getRuns(page: number = 1, limit: number = 10): Promise<{ runs: Run[], total: number, activeRun: Run | null }> {
+    const { data } = await api.get('/runs', { params: { page, limit } });
     return data;
   },
   

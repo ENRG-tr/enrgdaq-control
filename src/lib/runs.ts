@@ -7,18 +7,16 @@ const RUN_CONTROLLER_RUN_ALIVE_AFTER_MS = 2000;
 
 export class RunController {
   
-  static async getRuns(page: number = 1, limit: number = 10): Promise<{ runs: Run[], total: number }> {
-    const offset = (page - 1) * limit;
+  static async getAllRuns(limit: number = 20, offset: number = 0): Promise<{ runs: Run[], total: number, activeRun: Run | null }> {
+    // Check liveness of any locally RUNNING run before returning
+    const activeRun = await this.getActiveRun(); // This triggers the check
 
-    const [totalObj] = await db.select({ count: count() }).from(runs);
-    const total = totalObj.count;
+    const [totalResult] = await db.select({ count: count() }).from(runs);
+    const total = totalResult?.count || 0;
 
-    const rows = await db.select().from(runs)
-        .orderBy(desc(runs.id))
-        .limit(limit)
-        .offset(offset);
-        
-    return { runs: rows, total };
+    const data = await db.select().from(runs).orderBy(desc(runs.id)).limit(limit).offset(offset);
+    
+    return { runs: data, total, activeRun };
   }
 
   static async getActiveRun(): Promise<Run | null> {
