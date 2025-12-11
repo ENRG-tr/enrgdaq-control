@@ -28,6 +28,7 @@ export default function RootLayout({
             integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" 
             crossOrigin="anonymous"
         />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glyphicons-halflings@1.9.1/css/glyphicons-halflings.min.css" />
       </head>
       <body className={`${inter.className} bg-dark text-light`}>
         <div className="container-fluid vh-100 d-flex flex-column overflow-hidden p-0">
