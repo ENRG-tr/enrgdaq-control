@@ -336,14 +336,14 @@ const AdvancedControl = () => {
 
         {/* Logs */}
         <div className="col-lg-5">
-          <div className="card h-100">
+          <div className="card">
             <div className="card-header fw-bold bg-dark border-secondary">
               <i className="fa-solid fa-list-ul me-2"></i>Supervisor Logs
             </div>
             <div className="card-body p-0">
               <div
                 className="console-logs m-0 h-100 border-0 rounded-0"
-                style={{ minHeight: '450px', maxHeight: '450px' }}
+                style={{ minHeight: '500px', maxHeight: '500px' }}
               >
                 {[]
                   .concat(logs as any)

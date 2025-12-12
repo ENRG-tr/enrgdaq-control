@@ -235,7 +235,6 @@ const RunDashboard = () => {
                 <th>Description</th>
                 <th>Start Time</th>
                 <th>Status</th>
-                <th>Data Path</th>
               </tr>
             </thead>
             <tbody>
@@ -262,9 +261,6 @@ const RunDashboard = () => {
                     >
                       {run.status}
                     </span>
-                  </td>
-                  <td className="font-monospace text-muted small">
-                    runs/{run.id}/...
                   </td>
                 </tr>
               ))}
