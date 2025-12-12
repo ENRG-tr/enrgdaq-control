@@ -10,3 +10,14 @@ export async function GET() {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+
+// POST create run type
+export async function POST(request: Request) {
+  try {
+    const data = await request.json();
+    const newRunType = await TemplateController.createRunType(data);
+    return NextResponse.json(newRunType);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}

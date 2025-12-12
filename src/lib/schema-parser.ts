@@ -5,16 +5,23 @@
 
 export interface FieldDefinition {
   name: string;
-  type: 'string' | 'number' | 'boolean' | 'select' | 'object' | 'array' | 'arrayOfObjects';
+  type:
+    | 'string'
+    | 'number'
+    | 'boolean'
+    | 'select'
+    | 'object'
+    | 'array'
+    | 'arrayOfObjects';
   label: string;
   description?: string;
   required?: boolean;
   default?: string | number | boolean | null | string[] | unknown[];
   options?: { value: string; label: string }[];
   nullable?: boolean;
-  arrayItemType?: 'string' | 'number';  // For simple array fields (list[str], list[int])
-  objectFields?: FieldDefinition[];      // For arrayOfObjects, the fields of each item
-  objectSchemaName?: string;             // The schema name for display purposes
+  arrayItemType?: 'string' | 'number'; // For simple array fields (list[str], list[int])
+  objectFields?: FieldDefinition[]; // For arrayOfObjects, the fields of each item
+  objectSchemaName?: string; // The schema name for display purposes
 }
 
 export interface StoreConfigSchema {
@@ -55,7 +62,10 @@ interface JSONSchema {
   items?: JSONSchema;
 }
 
-type RawAPIResponse = Record<string, { $ref: string; $defs: Record<string, JSONSchema> }>;
+type RawAPIResponse = Record<
+  string,
+  { $ref: string; $defs: Record<string, JSONSchema> }
+>;
 
 /**
  * Convert a property name to a human-readable label
@@ -63,14 +73,17 @@ type RawAPIResponse = Record<string, { $ref: string; $defs: Record<string, JSONS
 function toLabel(name: string): string {
   return name
     .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 
 /**
  * Resolve a $ref to its definition
  */
-function resolveRef(ref: string, defs: Record<string, JSONSchema>): JSONSchema | null {
+function resolveRef(
+  ref: string,
+  defs: Record<string, JSONSchema>
+): JSONSchema | null {
   // $ref format: "#/$defs/DefinitionName"
   const match = ref.match(/^#\/\$defs\/(.+)$/);
   if (match && defs[match[1]]) {
@@ -82,7 +95,10 @@ function resolveRef(ref: string, defs: Record<string, JSONSchema>): JSONSchema |
 /**
  * Determine the field type from a JSON Schema property
  */
-function getFieldType(schema: JSONSchema, defs: Record<string, JSONSchema>): FieldDefinition['type'] {
+function getFieldType(
+  schema: JSONSchema,
+  defs: Record<string, JSONSchema>
+): FieldDefinition['type'] {
   // Handle $ref
   if (schema.$ref) {
     const resolved = resolveRef(schema.$ref, defs);
@@ -93,7 +109,7 @@ function getFieldType(schema: JSONSchema, defs: Record<string, JSONSchema>): Fie
 
   // Handle anyOf (nullable types)
   if (schema.anyOf) {
-    const nonNullType = schema.anyOf.find(s => s.type !== 'null');
+    const nonNullType = schema.anyOf.find((s) => s.type !== 'null');
     if (nonNullType) {
       return getFieldType(nonNullType, defs);
     }
@@ -130,7 +146,7 @@ function getFieldType(schema: JSONSchema, defs: Record<string, JSONSchema>): Fie
  */
 function isNullable(schema: JSONSchema): boolean {
   if (schema.anyOf) {
-    return schema.anyOf.some(s => s.type === 'null');
+    return schema.anyOf.some((s) => s.type === 'null');
   }
   return false;
 }
@@ -138,7 +154,10 @@ function isNullable(schema: JSONSchema): boolean {
 /**
  * Get enum options from a schema
  */
-function getEnumOptions(schema: JSONSchema, defs: Record<string, JSONSchema>): { value: string; label: string }[] | undefined {
+function getEnumOptions(
+  schema: JSONSchema,
+  defs: Record<string, JSONSchema>
+): { value: string; label: string }[] | undefined {
   // Handle $ref
   if (schema.$ref) {
     const resolved = resolveRef(schema.$ref, defs);
@@ -156,7 +175,7 @@ function getEnumOptions(schema: JSONSchema, defs: Record<string, JSONSchema>): {
   }
 
   if (schema.enum) {
-    return schema.enum.map(value => ({
+    return schema.enum.map((value) => ({
       value,
       label: toLabel(value),
     }));
@@ -168,30 +187,38 @@ function getEnumOptions(schema: JSONSchema, defs: Record<string, JSONSchema>): {
 /**
  * Get the description from a schema, handling $ref and anyOf
  */
-function getDescription(schema: JSONSchema, defs: Record<string, JSONSchema>): string | undefined {
+function getDescription(
+  schema: JSONSchema,
+  defs: Record<string, JSONSchema>
+): string | undefined {
   if (schema.description) return schema.description;
-  
+
   if (schema.$ref) {
     const resolved = resolveRef(schema.$ref, defs);
     if (resolved?.description) return resolved.description;
   }
-  
+
   if (schema.anyOf) {
     for (const s of schema.anyOf) {
       const desc = getDescription(s, defs);
       if (desc) return desc;
     }
   }
-  
+
   return undefined;
 }
 
 /**
  * Parse a JSON Schema property into a FieldDefinition
  */
-function parseField(name: string, schema: JSONSchema, required: boolean, defs: Record<string, JSONSchema>): FieldDefinition {
+function parseField(
+  name: string,
+  schema: JSONSchema,
+  required: boolean,
+  defs: Record<string, JSONSchema>
+): FieldDefinition {
   const fieldType = getFieldType(schema, defs);
-  
+
   // Detect array item type or object fields
   let arrayItemType: 'string' | 'number' | undefined;
   let objectFields: FieldDefinition[] | undefined;
@@ -201,15 +228,15 @@ function parseField(name: string, schema: JSONSchema, required: boolean, defs: R
     // Get the actual schema (resolve anyOf if needed)
     let arraySchema = schema;
     if (schema.anyOf) {
-      arraySchema = schema.anyOf.find(s => s.type === 'array') || schema;
+      arraySchema = schema.anyOf.find((s) => s.type === 'array') || schema;
     }
     if (schema.$ref) {
       arraySchema = resolveRef(schema.$ref, defs) || schema;
     }
-    
+
     if (arraySchema.items) {
-      const itemType = Array.isArray(arraySchema.items.type) 
-        ? arraySchema.items.type[0] 
+      const itemType = Array.isArray(arraySchema.items.type)
+        ? arraySchema.items.type[0]
         : arraySchema.items.type;
       if (itemType === 'integer' || itemType === 'number') {
         arrayItemType = 'number';
@@ -223,32 +250,39 @@ function parseField(name: string, schema: JSONSchema, required: boolean, defs: R
     // Resolve the item schema
     let arraySchema = schema;
     if (schema.anyOf) {
-      arraySchema = schema.anyOf.find(s => s.type === 'array' || (s.items && s.items.$ref)) || schema;
+      arraySchema =
+        schema.anyOf.find(
+          (s) => s.type === 'array' || (s.items && s.items.$ref)
+        ) || schema;
     }
-    
+
     if (arraySchema.items && arraySchema.items.$ref) {
       const refName = arraySchema.items.$ref.replace('#/$defs/', '');
       objectSchemaName = toLabel(refName);
       const itemSchema = resolveRef(arraySchema.items.$ref, defs);
-      
+
       if (itemSchema && itemSchema.properties) {
         objectFields = [];
         const requiredFields = new Set(itemSchema.required || []);
-        
-        for (const [propName, propSchema] of Object.entries(itemSchema.properties)) {
+
+        for (const [propName, propSchema] of Object.entries(
+          itemSchema.properties
+        )) {
           // Prevent infinite recursion by skipping complex nested objects inside the array item for now
           // We can expand this later if needed
           const propType = getFieldType(propSchema, defs);
           if (propType === 'object' || propType === 'arrayOfObjects') {
             continue;
           }
-           
-          objectFields.push(parseField(propName, propSchema, requiredFields.has(propName), defs));
+
+          objectFields.push(
+            parseField(propName, propSchema, requiredFields.has(propName), defs)
+          );
         }
       }
     }
   }
-  
+
   return {
     name,
     type: fieldType,
@@ -267,18 +301,22 @@ function parseField(name: string, schema: JSONSchema, required: boolean, defs: R
 /**
  * Parse store config schemas from the $defs
  */
-function parseStoreConfigSchemas(defs: Record<string, JSONSchema>): Record<string, StoreConfigSchema> {
+function parseStoreConfigSchemas(
+  defs: Record<string, JSONSchema>
+): Record<string, StoreConfigSchema> {
   const storeSchemas: Record<string, StoreConfigSchema> = {};
-  
+
   // Parse remote_config fields to include in all store configs
   // Note: drop_remote_messages is only for global remote_config, not store-level
   const remoteConfigFields: FieldDefinition[] = [];
   const remoteConfigDef = defs['DAQRemoteConfig'];
   if (remoteConfigDef?.properties) {
-    for (const [propName, propSchema] of Object.entries(remoteConfigDef.properties)) {
+    for (const [propName, propSchema] of Object.entries(
+      remoteConfigDef.properties
+    )) {
       // Skip drop_remote_messages - it only applies at job level, not store level
       if (propName === 'drop_remote_messages') continue;
-      
+
       const fieldType = getFieldType(propSchema, defs);
       if (fieldType !== 'object') {
         remoteConfigFields.push({
@@ -289,7 +327,7 @@ function parseStoreConfigSchemas(defs: Record<string, JSONSchema>): Record<strin
       }
     }
   }
-  
+
   // Find all DAQJobStoreConfig* definitions
   const storeConfigTypes = [
     { key: 'csv', defName: 'DAQJobStoreConfigCSV' },
@@ -300,26 +338,28 @@ function parseStoreConfigSchemas(defs: Record<string, JSONSchema>): Record<strin
     { key: 'redis', defName: 'DAQJobStoreConfigRedis' },
     { key: 'memory', defName: 'DAQJobStoreConfigMemory' },
   ];
-  
+
   for (const { key, defName } of storeConfigTypes) {
     const def = defs[defName];
     if (!def) continue;
-    
+
     const fields: FieldDefinition[] = [];
     const requiredFields = new Set(def.required || []);
-    
+
     if (def.properties) {
       for (const [propName, propSchema] of Object.entries(def.properties)) {
         // Skip remote_config here - we add it separately with prefixed fields
         if (propName === 'remote_config') continue;
-        
-        fields.push(parseField(propName, propSchema, requiredFields.has(propName), defs));
+
+        fields.push(
+          parseField(propName, propSchema, requiredFields.has(propName), defs)
+        );
       }
     }
-    
+
     // Add remote_config fields at the end
     fields.push(...remoteConfigFields);
-    
+
     storeSchemas[key] = {
       type: key,
       label: def.title || toLabel(key),
@@ -327,19 +367,23 @@ function parseStoreConfigSchemas(defs: Record<string, JSONSchema>): Record<strin
       fields,
     };
   }
-  
+
   return storeSchemas;
 }
 
 /**
  * Parse global remote_config fields for job level
  */
-function parseGlobalRemoteConfigFields(defs: Record<string, JSONSchema>): FieldDefinition[] {
+function parseGlobalRemoteConfigFields(
+  defs: Record<string, JSONSchema>
+): FieldDefinition[] {
   const fields: FieldDefinition[] = [];
   const remoteConfigDef = defs['DAQRemoteConfig'];
-  
+
   if (remoteConfigDef?.properties) {
-    for (const [propName, propSchema] of Object.entries(remoteConfigDef.properties)) {
+    for (const [propName, propSchema] of Object.entries(
+      remoteConfigDef.properties
+    )) {
       const fieldType = getFieldType(propSchema, defs);
       if (fieldType !== 'object') {
         fields.push({
@@ -350,31 +394,34 @@ function parseGlobalRemoteConfigFields(defs: Record<string, JSONSchema>): FieldD
       }
     }
   }
-  
+
   return fields;
 }
 
 /**
  * Parse a single DAQ job schema
  */
-function parseJobSchema(jobType: string, data: { $ref: string; $defs: Record<string, JSONSchema> }): DAQJobSchema | null {
+function parseJobSchema(
+  jobType: string,
+  data: { $ref: string; $defs: Record<string, JSONSchema> }
+): DAQJobSchema | null {
   const defs = data.$defs;
-  
+
   // Resolve the main config definition
   const mainConfigName = data.$ref.replace('#/$defs/', '');
   const mainConfig = defs[mainConfigName];
-  
+
   if (!mainConfig || !mainConfig.properties) {
     return null;
   }
-  
+
   const fields: FieldDefinition[] = [];
   const requiredFields = new Set(mainConfig.required || []);
-  
+
   // Detect store config keys dynamically by finding properties that reference DAQJobStoreConfig
   const storeConfigKeys: string[] = [];
   const storeConfigRefPattern = '#/$defs/DAQJobStoreConfig';
-  
+
   // Helper to check if a property references DAQJobStoreConfig (directly or via anyOf)
   const isStoreConfigProperty = (propSchema: JSONSchema): boolean => {
     // Direct reference
@@ -383,44 +430,50 @@ function parseJobSchema(jobType: string, data: { $ref: string; $defs: Record<str
     }
     // Check anyOf (for optional store configs like "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/DAQJobStoreConfig" }])
     if (propSchema.anyOf) {
-      return propSchema.anyOf.some(option => option.$ref === storeConfigRefPattern);
+      return propSchema.anyOf.some(
+        (option) => option.$ref === storeConfigRefPattern
+      );
     }
     return false;
   };
-  
+
   for (const [propName, propSchema] of Object.entries(mainConfig.properties)) {
     // Check if this property references DAQJobStoreConfig (directly or via anyOf)
     if (isStoreConfigProperty(propSchema)) {
       storeConfigKeys.push(propName);
       continue; // Skip adding to regular fields
     }
-    
+
     // Skip meta fields and remote_config (handled separately)
     if (['daq_job_type', 'remote_config', 'verbosity'].includes(propName)) {
       continue;
     }
-    
+
     // Skip properties already identified as store configs
     if (storeConfigKeys.includes(propName)) {
       continue;
     }
-    
+
     const fieldType = getFieldType(propSchema, defs);
-    
+
     // Skip complex object types for now
     if (fieldType === 'object') {
       continue;
     }
-    
-    fields.push(parseField(propName, propSchema, requiredFields.has(propName), defs));
+
+    fields.push(
+      parseField(propName, propSchema, requiredFields.has(propName), defs)
+    );
   }
-  
+
   // Parse global remote_config fields
   const remoteConfigFields = parseGlobalRemoteConfigFields(defs);
-  
+
   return {
     type: jobType,
-    label: mainConfig.title?.replace('Config', '').replace('DAQJob', '') || toLabel(jobType),
+    label:
+      mainConfig.title?.replace('Config', '').replace('DAQJob', '') ||
+      toLabel(jobType),
     description: mainConfig.description,
     fields,
     requiredFields: Array.from(requiredFields),
@@ -435,29 +488,31 @@ function parseJobSchema(jobType: string, data: { $ref: string; $defs: Record<str
 export function parseDAQJobSchemas(apiResponse: RawAPIResponse): ParsedSchemas {
   const jobSchemas: Record<string, DAQJobSchema> = {};
   let storeConfigSchemas: Record<string, StoreConfigSchema> = {};
-  
+
   for (const [jobType, data] of Object.entries(apiResponse)) {
     // Parse job schema
     const jobSchema = parseJobSchema(jobType, data);
     if (jobSchema) {
       jobSchemas[jobType] = jobSchema;
     }
-    
+
     // Parse store config schemas from the first job that has $defs
     // (they're the same across all jobs)
     if (Object.keys(storeConfigSchemas).length === 0 && data.$defs) {
       storeConfigSchemas = parseStoreConfigSchemas(data.$defs);
     }
   }
-  
+
   return { jobSchemas, storeConfigSchemas };
 }
 
 /**
  * Get available job types from parsed schemas
  */
-export function getJobTypes(schemas: ParsedSchemas): { value: string; label: string }[] {
-  return Object.values(schemas.jobSchemas).map(s => ({
+export function getJobTypes(
+  schemas: ParsedSchemas
+): { value: string; label: string }[] {
+  return Object.values(schemas.jobSchemas).map((s) => ({
     value: s.type,
     label: s.label,
   }));
@@ -466,8 +521,10 @@ export function getJobTypes(schemas: ParsedSchemas): { value: string; label: str
 /**
  * Get available store config types
  */
-export function getStoreTypes(schemas: ParsedSchemas): { value: string; label: string }[] {
-  return Object.values(schemas.storeConfigSchemas).map(s => ({
+export function getStoreTypes(
+  schemas: ParsedSchemas
+): { value: string; label: string }[] {
+  return Object.values(schemas.storeConfigSchemas).map((s) => ({
     value: s.type,
     label: s.label,
   }));

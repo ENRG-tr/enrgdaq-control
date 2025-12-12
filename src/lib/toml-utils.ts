@@ -1,6 +1,12 @@
 import TOML from '@iarna/toml';
 
-export type TomlValue = string | number | boolean | Date | TomlValue[] | TomlObject;
+export type TomlValue =
+  | string
+  | number
+  | boolean
+  | Date
+  | TomlValue[]
+  | TomlObject;
 export type TomlObject = { [key: string]: TomlValue };
 
 /**
@@ -30,7 +36,9 @@ export function stringifyToml(obj: TomlObject): string {
 /**
  * Determine the field type for form rendering
  */
-export function getFieldType(value: TomlValue): 'string' | 'number' | 'boolean' | 'array' | 'object' {
+export function getFieldType(
+  value: TomlValue
+): 'string' | 'number' | 'boolean' | 'array' | 'object' {
   if (typeof value === 'boolean') return 'boolean';
   if (typeof value === 'number') return 'number';
   if (typeof value === 'string') return 'string';
@@ -57,26 +65,34 @@ export function isNumericString(value: string): boolean {
 export function keyToLabel(key: string): string {
   return key
     .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }
 
 /**
  * Flatten nested object paths for form field names
  */
-export function flattenObject(obj: TomlObject, prefix = ''): Record<string, TomlValue> {
+export function flattenObject(
+  obj: TomlObject,
+  prefix = ''
+): Record<string, TomlValue> {
   const result: Record<string, TomlValue> = {};
-  
+
   for (const [key, value] of Object.entries(obj)) {
     const fullKey = prefix ? `${prefix}.${key}` : key;
-    
-    if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
+
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      !(value instanceof Date)
+    ) {
       Object.assign(result, flattenObject(value as TomlObject, fullKey));
     } else {
       result[fullKey] = value;
     }
   }
-  
+
   return result;
 }
 
@@ -85,11 +101,11 @@ export function flattenObject(obj: TomlObject, prefix = ''): Record<string, Toml
  */
 export function unflattenObject(flat: Record<string, TomlValue>): TomlObject {
   const result: TomlObject = {};
-  
+
   for (const [key, value] of Object.entries(flat)) {
     const parts = key.split('.');
     let current: TomlObject = result;
-    
+
     for (let i = 0; i < parts.length - 1; i++) {
       const part = parts[i];
       if (!(part in current)) {
@@ -97,9 +113,9 @@ export function unflattenObject(flat: Record<string, TomlValue>): TomlObject {
       }
       current = current[part] as TomlObject;
     }
-    
+
     current[parts[parts.length - 1]] = value;
   }
-  
+
   return result;
 }

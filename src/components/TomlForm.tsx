@@ -1,11 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  parseToml,
-  stringifyToml,
-  type TomlObject,
-} from '@/lib/toml-utils';
+import { parseToml, stringifyToml, type TomlObject } from '@/lib/toml-utils';
 import {
   parseDAQJobSchemas,
   getJobTypes,
@@ -30,10 +26,10 @@ interface FormData {
 // Format description text with line breaks and preserved indentation
 const formatDescription = (text: string | undefined): React.ReactNode => {
   if (!text) return null;
-  
+
   // Split by newlines and render each line
   const lines = text.split('\n');
-  
+
   return (
     <>
       {lines.map((line, index) => {
@@ -41,10 +37,11 @@ const formatDescription = (text: string | undefined): React.ReactNode => {
         const leadingSpaces = line.match(/^(\s*)/)?.[1].length || 0;
         const indent = '\u00A0'.repeat(leadingSpaces); // non-breaking spaces
         const trimmedLine = line.trimStart();
-        
+
         return (
           <React.Fragment key={index}>
-            {indent}{trimmedLine}
+            {indent}
+            {trimmedLine}
             {index < lines.length - 1 && <br />}
           </React.Fragment>
         );
@@ -56,14 +53,21 @@ const formatDescription = (text: string | undefined): React.ReactNode => {
 import validator from '@rjsf/validator-ajv8';
 import Form from '@rjsf/react-bootstrap';
 
-const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = false, disableJobType = false }) => {
+const TomlForm: React.FC<TomlFormProps> = ({
+  initialToml,
+  onChange,
+  disabled = false,
+  disableJobType = false,
+}) => {
   const [schemas, setSchemas] = useState<ParsedSchemas | null>(null);
   // Store raw schemas for RJSF
-  const [rawSchemas, setRawSchemas] = useState<Record<string, any> | null>(null);
+  const [rawSchemas, setRawSchemas] = useState<Record<string, any> | null>(
+    null
+  );
   const [schemasLoading, setSchemasLoading] = useState(true);
   const [schemasError, setSchemasError] = useState<string | null>(null);
   const [rjsfData, setRjsfData] = useState<any>({});
-  
+
   const [formData, setFormData] = useState<FormData>({
     daq_job_type: '',
   });
@@ -78,43 +82,50 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
         setSchemasLoading(true);
         const rawSchemas = await API.getDAQJobSchemas();
         setRawSchemas(rawSchemas);
-        const parsed = parseDAQJobSchemas(rawSchemas as Parameters<typeof parseDAQJobSchemas>[0]);
+        const parsed = parseDAQJobSchemas(
+          rawSchemas as Parameters<typeof parseDAQJobSchemas>[0]
+        );
         setSchemas(parsed);
         setSchemasError(null);
-        
+
         // Set default job type if not already set
         const jobTypes = getJobTypes(parsed);
         if (jobTypes.length > 0 && !formData.daq_job_type) {
-          setFormData(prev => ({
+          setFormData((prev) => ({
             ...prev,
             daq_job_type: jobTypes[0].value,
           }));
         }
       } catch (error) {
         console.error('Failed to fetch DAQ job schemas:', error);
-        setSchemasError('Failed to load DAQ job schemas. Using raw TOML editor.');
+        setSchemasError(
+          'Failed to load DAQ job schemas. Using raw TOML editor.'
+        );
         setShowRawEditor(true);
       } finally {
         setSchemasLoading(false);
       }
     };
-    
+
     fetchSchemas();
   }, []);
 
   // Parse TOML when initialToml or schemas change
   useEffect(() => {
     if (!schemas) return;
-        
+
     try {
       const parsed = parseToml(initialToml);
       setRjsfData(parsed);
-      
+
       // Extract daq_job_type
-      const daqJobType = (parsed.daq_job_type as string) || Object.keys(schemas.jobSchemas)[0] || '';
-      
+      const daqJobType =
+        (parsed.daq_job_type as string) ||
+        Object.keys(schemas.jobSchemas)[0] ||
+        '';
+
       // We only track job type manually now
-      setFormData(prev => ({ ...prev, daq_job_type: daqJobType }));
+      setFormData((prev) => ({ ...prev, daq_job_type: daqJobType }));
       setRawToml(initialToml);
       setParseError(null);
     } catch (e) {
@@ -128,13 +139,13 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
     // Reset RJSF data when job type changes
     const newRjsfData = { daq_job_type: newType };
     setRjsfData(newRjsfData);
-    
+
     // Update raw TOML and notify parent
     const toml = stringifyToml(newRjsfData);
     setRawToml(toml);
     onChange(toml);
-    
-    setFormData(prev => ({ ...prev, daq_job_type: newType }));
+
+    setFormData((prev) => ({ ...prev, daq_job_type: newType }));
   };
 
   const handleRawChange = (value: string) => {
@@ -142,12 +153,12 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
     try {
       const parsed = parseToml(value);
       setRjsfData(parsed);
-      
+
       const daqJobType = (parsed.daq_job_type as string) || '';
       if (daqJobType && daqJobType !== formData.daq_job_type) {
-         setFormData(prev => ({ ...prev, daq_job_type: daqJobType }));
+        setFormData((prev) => ({ ...prev, daq_job_type: daqJobType }));
       }
-      
+
       setParseError(null);
       onChange(value);
     } catch {
@@ -159,7 +170,10 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
   if (schemasLoading) {
     return (
       <div className="text-center py-4">
-        <div className="spinner-border spinner-border-sm text-primary me-2" role="status">
+        <div
+          className="spinner-border spinner-border-sm text-primary me-2"
+          role="status"
+        >
           <span className="visually-hidden">Loading...</span>
         </div>
         <span className="text-muted">Loading DAQ job schemas...</span>
@@ -196,7 +210,7 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
       <div className="alert alert-warning">
         <i className="fa-solid fa-triangle-exclamation me-2"></i>
         {parseError}
-        <button 
+        <button
           className="btn btn-sm btn-outline-light ms-3"
           onClick={() => setShowRawEditor(true)}
         >
@@ -212,13 +226,17 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
       <div className="d-flex justify-content-end mb-3">
         <div className="btn-group btn-group-sm">
           <button
-            className={`btn ${!showRawEditor ? 'btn-primary' : 'btn-outline-secondary'}`}
+            className={`btn ${
+              !showRawEditor ? 'btn-primary' : 'btn-outline-secondary'
+            }`}
             onClick={() => setShowRawEditor(false)}
           >
             <i className="fa-solid fa-sliders me-1"></i> Form
           </button>
           <button
-            className={`btn ${showRawEditor ? 'btn-primary' : 'btn-outline-secondary'}`}
+            className={`btn ${
+              showRawEditor ? 'btn-primary' : 'btn-outline-secondary'
+            }`}
             onClick={() => setShowRawEditor(true)}
           >
             <i className="fa-solid fa-code me-1"></i> TOML
@@ -263,7 +281,9 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
               ))}
             </select>
             {jobSchema?.description && (
-              <small className="text-muted d-block mt-1">{formatDescription(jobSchema.description)}</small>
+              <small className="text-muted d-block mt-1">
+                {formatDescription(jobSchema.description)}
+              </small>
             )}
           </div>
 
@@ -282,7 +302,7 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
                 }}
                 validator={validator}
                 uiSchema={{
-                  daq_job_type: { "ui:widget": "hidden" }
+                  daq_job_type: { 'ui:widget': 'hidden' },
                 }}
               >
                 {/* Hide default submit button */}
@@ -290,7 +310,6 @@ const TomlForm: React.FC<TomlFormProps> = ({ initialToml, onChange, disabled = f
               </Form>
             </div>
           )}
-
         </div>
       )}
     </div>

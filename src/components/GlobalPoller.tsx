@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '@/lib/store';
 
-
 const POLLER_INTERVAL = 1000;
 
 export default function GlobalPoller() {
@@ -11,29 +10,25 @@ export default function GlobalPoller() {
   const isMounted = useRef(false);
 
   useEffect(() => {
-    // Prevent double execution in strict mode during development if needed, 
+    // Prevent double execution in strict mode during development if needed,
     // though for polling it's just an extra call.
     isMounted.current = true;
 
     const fetchData = async () => {
-        await Promise.all([
-            fetchClients(),
-            fetchRuns(),
-            pollClientStatus()
-        ]);
+      await Promise.all([fetchClients(), fetchRuns(), pollClientStatus()]);
     };
 
     fetchData();
 
     const interval = setInterval(() => {
-        if (isMounted.current) {
-            fetchData();
-        }
+      if (isMounted.current) {
+        fetchData();
+      }
     }, POLLER_INTERVAL);
 
     return () => {
-        isMounted.current = false;
-        clearInterval(interval);
+      isMounted.current = false;
+      clearInterval(interval);
     };
   }, [fetchClients, fetchRuns, pollClientStatus]);
 

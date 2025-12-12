@@ -34,11 +34,14 @@ const RunDashboard = () => {
     if (!description) return;
     setIsStarting(true);
     try {
-      await startRun(description, selectedRunTypeId ? Number(selectedRunTypeId) : undefined);
+      await startRun(
+        description,
+        selectedRunTypeId ? Number(selectedRunTypeId) : undefined
+      );
       setDescription('');
       toast.success('Acquisition started successfully');
     } catch (e: any) {
-      console.error("Failed to start run:", e);
+      console.error('Failed to start run:', e);
       toast.error('Failed to start run: ' + (e.message || e));
     } finally {
       setIsStarting(false);
@@ -49,19 +52,19 @@ const RunDashboard = () => {
     if (!activeRun) return;
     setIsStopping(true);
     try {
-        await stopRun();
-        toast.success(`Run #${activeRun.id} stopped successfully`);
+      await stopRun();
+      toast.success(`Run #${activeRun.id} stopped successfully`);
     } catch (e: any) {
-        console.error("Failed to stop run:", e);
-        toast.error('Failed to stop run: ' + (e.message || e));
+      console.error('Failed to stop run:', e);
+      toast.error('Failed to stop run: ' + (e.message || e));
     } finally {
-        setIsStopping(false);
+      setIsStopping(false);
     }
   };
 
   const getRunTypeName = (typeId: number | null) => {
-      if (!typeId) return '-';
-      return runTypes.find(rt => rt.id === typeId)?.name || 'Unknown';
+    if (!typeId) return '-';
+    return runTypes.find((rt) => rt.id === typeId)?.name || 'Unknown';
   };
 
   return (
@@ -85,7 +88,7 @@ const RunDashboard = () => {
           </select>
           <div
             className={`ms-3 status-dot ${
-                clientOnline ? 'status-online' : 'status-offline'
+              clientOnline ? 'status-online' : 'status-offline'
             }`}
           ></div>
         </div>
@@ -107,7 +110,9 @@ const RunDashboard = () => {
                   </div>
                   <h3 className="text-success fw-bold">ACQUISITION ACTIVE</h3>
                   <h5 className="text-light mt-3">Run ID: #{activeRun.id}</h5>
-                  <div className="badge bg-secondary mb-2">{getRunTypeName(activeRun.runTypeId)}</div>
+                  <div className="badge bg-secondary mb-2">
+                    {getRunTypeName(activeRun.runTypeId)}
+                  </div>
                   <p className="text-muted lead">"{activeRun.description}"</p>
                   <div className="mt-4 w-100 px-5">
                     <button
@@ -116,14 +121,18 @@ const RunDashboard = () => {
                       disabled={isStopping}
                     >
                       {isStopping ? (
-                          <>
-                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                            STOPPING...
-                          </>
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-2"
+                            role="status"
+                            aria-hidden="true"
+                          ></span>
+                          STOPPING...
+                        </>
                       ) : (
-                          <>
-                            <i className="fa-solid fa-stop me-2"></i> STOP RUN
-                          </>
+                        <>
+                          <i className="fa-solid fa-stop me-2"></i> STOP RUN
+                        </>
                       )}
                     </button>
                   </div>
@@ -152,19 +161,27 @@ const RunDashboard = () => {
             <div className="card-body p-4">
               <div className="mb-4">
                 <label className="form-label text-muted">Run Type</label>
-                <select 
-                    className="form-select form-select-lg bg-dark text-light border-secondary"
-                    value={selectedRunTypeId}
-                    onChange={(e) => setSelectedRunTypeId(e.target.value === '' ? '' : Number(e.target.value))}
-                    disabled={!!activeRun || !clientOnline}
+                <select
+                  className="form-select form-select-lg bg-dark text-light border-secondary"
+                  value={selectedRunTypeId}
+                  onChange={(e) =>
+                    setSelectedRunTypeId(
+                      e.target.value === '' ? '' : Number(e.target.value)
+                    )
+                  }
+                  disabled={!!activeRun || !clientOnline}
                 >
-                    <option value="" disabled>-- Select Run Type --</option>
-                    {runTypes.map(rt => (
-                        <option key={rt.id} value={rt.id}>{rt.name}</option>
-                    ))}
+                  <option value="" disabled>
+                    -- Select Run Type --
+                  </option>
+                  {runTypes.map((rt) => (
+                    <option key={rt.id} value={rt.id}>
+                      {rt.name}
+                    </option>
+                  ))}
                 </select>
                 <div className="form-text">
-                   Select a run type to use specific templates.
+                  Select a run type to use specific templates.
                 </div>
               </div>
 
@@ -197,17 +214,25 @@ const RunDashboard = () => {
               <button
                 onClick={handleStart}
                 disabled={
-                  !!activeRun || !clientOnline || !description || isStarting || !selectedRunTypeId
+                  !!activeRun ||
+                  !clientOnline ||
+                  !description ||
+                  isStarting ||
+                  !selectedRunTypeId
                 }
                 className="btn btn-primary btn-lg w-100 mt-3"
               >
                 {isStarting ? (
-                    <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Initializing...
-                    </>
+                  <>
+                    <span
+                      className="spinner-border spinner-border-sm me-2"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                    Initializing...
+                  </>
                 ) : (
-                    'START RUN'
+                  'START RUN'
                 )}
               </button>
               {!clientOnline && (
@@ -223,8 +248,10 @@ const RunDashboard = () => {
       {/* History Table */}
       <div className="card">
         <div className="card-header fw-bold d-flex justify-content-between align-items-center">
-            <span><i className="fa-solid fa-clock-rotate-left me-2"></i>Run History</span>
-            <span className="badge bg-secondary">{runsTotal} Runs</span>
+          <span>
+            <i className="fa-solid fa-clock-rotate-left me-2"></i>Run History
+          </span>
+          <span className="badge bg-secondary">{runsTotal} Runs</span>
         </div>
         <div className="card-body p-0">
           <table className="table table-dark table-hover mb-0">
@@ -246,9 +273,11 @@ const RunDashboard = () => {
                   <td className="ps-4 font-monospace">#{run.id}</td>
                   <td>
                     {run.runTypeId ? (
-                        <span className="badge bg-info text-dark">{getRunTypeName(run.runTypeId)}</span>
+                      <span className="badge bg-info text-dark">
+                        {getRunTypeName(run.runTypeId)}
+                      </span>
                     ) : (
-                        <span className="badge bg-secondary">Generic</span>
+                      <span className="badge bg-secondary">Generic</span>
                     )}
                   </td>
                   <td>{run.description}</td>
@@ -273,28 +302,28 @@ const RunDashboard = () => {
               )}
             </tbody>
           </table>
-          
+
           {/* Pagination */}
           {runsTotal > runsLimit && (
-              <div className="d-flex justify-content-between align-items-center p-3 border-top border-secondary">
-                  <button 
-                      className="btn btn-sm btn-outline-secondary" 
-                      disabled={runsPage === 1}
-                      onClick={() => setRunsPage(runsPage - 1)}
-                  >
-                      <i className="fa-solid fa-chevron-left me-1"></i> Prev
-                  </button>
-                  <span className="text-muted small">
-                      Page {runsPage} of {Math.ceil(runsTotal / runsLimit)}
-                  </span>
-                  <button 
-                      className="btn btn-sm btn-outline-secondary" 
-                      disabled={runsPage >= Math.ceil(runsTotal / runsLimit)}
-                      onClick={() => setRunsPage(runsPage + 1)}
-                  >
-                      Next <i className="fa-solid fa-chevron-right ms-1"></i>
-                  </button>
-              </div>
+            <div className="d-flex justify-content-between align-items-center p-3 border-top border-secondary">
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                disabled={runsPage === 1}
+                onClick={() => setRunsPage(runsPage - 1)}
+              >
+                <i className="fa-solid fa-chevron-left me-1"></i> Prev
+              </button>
+              <span className="text-muted small">
+                Page {runsPage} of {Math.ceil(runsTotal / runsLimit)}
+              </span>
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                disabled={runsPage >= Math.ceil(runsTotal / runsLimit)}
+                onClick={() => setRunsPage(runsPage + 1)}
+              >
+                Next <i className="fa-solid fa-chevron-right ms-1"></i>
+              </button>
+            </div>
           )}
         </div>
       </div>

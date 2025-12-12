@@ -1,4 +1,12 @@
-import { pgTable, serial, text, timestamp, boolean, json, integer } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  boolean,
+  json,
+  integer,
+} from 'drizzle-orm/pg-core';
 
 // Runs table - tracks DAQ acquisition runs
 export const runs = pgTable('runs', {
@@ -33,12 +41,20 @@ export const templates = pgTable('templates', {
 });
 
 // Junction table for Many-to-Many relationship between Templates and RunTypes
-export const templateRunTypes = pgTable('template_run_types', {
-  templateId: integer('template_id').references(() => templates.id).notNull(),
-  runTypeId: integer('run_type_id').references(() => runTypes.id).notNull(),
-}, (t) => ({
-  pk: { columns: [t.templateId, t.runTypeId] },
-}));
+export const templateRunTypes = pgTable(
+  'template_run_types',
+  {
+    templateId: integer('template_id')
+      .references(() => templates.id)
+      .notNull(),
+    runTypeId: integer('run_type_id')
+      .references(() => runTypes.id)
+      .notNull(),
+  },
+  (t) => ({
+    pk: { columns: [t.templateId, t.runTypeId] },
+  })
+);
 
 // Type exports
 export type Run = typeof runs.$inferSelect;

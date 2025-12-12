@@ -10,6 +10,31 @@ export class TemplateController {
     return await db.select().from(runTypes);
   }
 
+  static async createRunType(data: { name: string; description?: string }): Promise<RunType> {
+    const [runType] = await db.insert(runTypes).values({
+        name: data.name,
+        description: data.description
+    }).returning();
+    return runType;
+  }
+
+  static async updateRunType(id: number, data: { name?: string; description?: string }): Promise<RunType | null> {
+    const [updated] = await db.update(runTypes)
+      .set(data)
+      .where(eq(runTypes.id, id))
+      .returning();
+    return updated || null;
+  }
+
+  static async deleteRunType(id: number): Promise<boolean> {
+     // NOTE: This might fail if referenced by runs or template_run_types. 
+     // For now, let's assume the user handles cascading or we let it error if referenced.
+     // Ideally we should maybe delete from template_run_types first?
+     await db.delete(templateRunTypes).where(eq(templateRunTypes.runTypeId, id));
+     const result = await db.delete(runTypes).where(eq(runTypes.id, id));
+     return result.length > 0; // Returning check might differ based on drier driver, but usually it returns deleted rows
+  }
+
   static async getAllTemplates(): Promise<TemplateWithRunTypes[]> {
     const allTemplates = await db.select().from(templates);
     const allRelations = await db.select().from(templateRunTypes);

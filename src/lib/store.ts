@@ -46,13 +46,13 @@ export const useStore = create<AppState>((set, get) => ({
 
   fetchClients: async () => {
     try {
-        const clients = await API.getClients();
-        set({ clients });
-        if (!get().selectedClient && clients.length > 0) {
+      const clients = await API.getClients();
+      set({ clients });
+      if (!get().selectedClient && clients.length > 0) {
         set({ selectedClient: clients[0] });
-        }
-    } catch(e) {
-        console.error("Failed to fetch clients", e);
+      }
+    } catch (e) {
+      console.error('Failed to fetch clients', e);
     }
   },
 
@@ -66,27 +66,27 @@ export const useStore = create<AppState>((set, get) => ({
     if (!selectedClient) return;
 
     try {
-        // Simple ping check via status
-        const status = await API.getStatus(selectedClient);
-        const newLogs = await API.getLogs(selectedClient);
-        set({ clientOnline: true, clientStatus: status, logs: newLogs });
-        
-        // Also refresh runs periodically to check status updates?
-        // Actually fetchRuns is called manually or by actions. 
-        // Polling dashboard usually refreshes runs too or we rely on websockets/events?
-        // The existing code did NOT poll fetchRuns inside pollClientStatus, so I leave it.
+      // Simple ping check via status
+      const status = await API.getStatus(selectedClient);
+      const newLogs = await API.getLogs(selectedClient);
+      set({ clientOnline: true, clientStatus: status, logs: newLogs });
+
+      // Also refresh runs periodically to check status updates?
+      // Actually fetchRuns is called manually or by actions.
+      // Polling dashboard usually refreshes runs too or we rely on websockets/events?
+      // The existing code did NOT poll fetchRuns inside pollClientStatus, so I leave it.
     } catch (e) {
-        set({ clientOnline: false, clientStatus: null });
+      set({ clientOnline: false, clientStatus: null });
     }
   },
 
   fetchRuns: async () => {
     const { runsPage, runsLimit } = get();
     try {
-        const { runs, total, activeRun } = await API.getRuns(runsPage, runsLimit);
-        set({ runs, runsTotal: total, activeRun });
-    } catch(e) {
-        console.error("Failed to fetch runs", e);
+      const { runs, total, activeRun } = await API.getRuns(runsPage, runsLimit);
+      set({ runs, runsTotal: total, activeRun });
+    } catch (e) {
+      console.error('Failed to fetch runs', e);
     }
   },
 
@@ -97,10 +97,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   fetchRunTypes: async () => {
     try {
-        const runTypes = await API.getRunTypes();
-        set({ runTypes });
-    } catch(e) {
-        console.error("Failed to fetch run types", e);
+      const runTypes = await API.getRunTypes();
+      set({ runTypes });
+    } catch (e) {
+      console.error('Failed to fetch run types', e);
     }
   },
 

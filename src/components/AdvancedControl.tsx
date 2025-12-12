@@ -49,7 +49,7 @@ const AdvancedControl = () => {
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const name = e.target.value;
     setSelectedTemplate(name);
-    const template = templates.find(t => t.name === name);
+    const template = templates.find((t) => t.name === name);
     if (template) {
       setCustomConfig(template.config);
     }
@@ -66,9 +66,9 @@ const AdvancedControl = () => {
     setIsEditing(false);
     setEditingJobId(null);
     if (templates.length > 0) {
-        const first = templates[0];
-        setSelectedTemplate(first.name);
-        setCustomConfig(first.config);
+      const first = templates[0];
+      setSelectedTemplate(first.name);
+      setCustomConfig(first.config);
     }
   };
 
@@ -76,38 +76,38 @@ const AdvancedControl = () => {
     if (!selectedClient) return;
     setStoppingJobId(jobId);
     try {
-        await API.stopJob(selectedClient, jobId);
-        toast.success('Job stopped successfully');
+      await API.stopJob(selectedClient, jobId);
+      toast.success('Job stopped successfully');
     } catch (e: any) {
-        console.error("Failed to stop job:", e);
-        toast.error(`Failed to stop job: ${e.message || e}`);
+      console.error('Failed to stop job:', e);
+      toast.error(`Failed to stop job: ${e.message || e}`);
     } finally {
-        setStoppingJobId(null);
+      setStoppingJobId(null);
     }
   };
 
   const handleExecute = async () => {
     if (!selectedClient) return;
-    
+
     setIsExecuting(true);
     try {
-        if (isEditing && editingJobId) {
-            await API.stopJob(selectedClient, editingJobId, true);
-        }
-        await API.runJob(selectedClient, customConfig);
-        
-        // Confirmation
-        if (isEditing) {
-             toast.success('Process updated successfully.');
-             handleStopEditing();
-        } else {
-             toast.success('Process started successfully.');
-        }
+      if (isEditing && editingJobId) {
+        await API.stopJob(selectedClient, editingJobId, true);
+      }
+      await API.runJob(selectedClient, customConfig);
+
+      // Confirmation
+      if (isEditing) {
+        toast.success('Process updated successfully.');
+        handleStopEditing();
+      } else {
+        toast.success('Process started successfully.');
+      }
     } catch (e: any) {
-        console.error("Execution failed:", e);
-        toast.error(`Execution failed: ${e.message || e}`);
+      console.error('Execution failed:', e);
+      toast.error(`Execution failed: ${e.message || e}`);
     } finally {
-        setIsExecuting(false);
+      setIsExecuting(false);
     }
   };
 
@@ -115,13 +115,13 @@ const AdvancedControl = () => {
     if (!selectedClient) return;
     setIsRestarting(true);
     try {
-        await API.restartDaq(selectedClient);
-        toast.success('DAQ restarted successfully');
+      await API.restartDaq(selectedClient);
+      toast.success('DAQ restarted successfully');
     } catch (e: any) {
-        console.error("Failed to restart DAQ:", e);
-        toast.error(`Failed to restart DAQ: ${e.message || e}`);
+      console.error('Failed to restart DAQ:', e);
+      toast.error(`Failed to restart DAQ: ${e.message || e}`);
     } finally {
-        setIsRestarting(false);
+      setIsRestarting(false);
     }
   };
 
@@ -129,13 +129,13 @@ const AdvancedControl = () => {
     if (!selectedClient) return;
     setIsStoppingAll(true);
     try {
-        await API.stopAllJobs(selectedClient);
-        toast.success('All jobs stopped successfully');
+      await API.stopAllJobs(selectedClient);
+      toast.success('All jobs stopped successfully');
     } catch (e: any) {
-        console.error("Failed to stop all jobs:", e);
-        toast.error(`Failed to stop all jobs: ${e.message || e}`);
+      console.error('Failed to stop all jobs:', e);
+      toast.error(`Failed to stop all jobs: ${e.message || e}`);
     } finally {
-        setIsStoppingAll(false);
+      setIsStoppingAll(false);
     }
   };
 
@@ -166,14 +166,18 @@ const AdvancedControl = () => {
               disabled={!clientOnline || isRestarting}
             >
               {isRestarting ? (
-                 <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                    Restarting...
-                 </>
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  ></span>
+                  Restarting...
+                </>
               ) : (
-                 <>
-                    <i className="fa-solid fa-rotate-right me-2"></i> Restart DAQ
-                 </>
+                <>
+                  <i className="fa-solid fa-rotate-right me-2"></i> Restart DAQ
+                </>
               )}
             </button>
             <button
@@ -182,14 +186,18 @@ const AdvancedControl = () => {
               disabled={!clientOnline || isStoppingAll}
             >
               {isStoppingAll ? (
-                 <>
-                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                    Stopping...
-                 </>
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  ></span>
+                  Stopping...
+                </>
               ) : (
-                 <>
-                    <i className="fa-solid fa-stop me-2"></i> Stop All
-                 </>
+                <>
+                  <i className="fa-solid fa-stop me-2"></i> Stop All
+                </>
               )}
             </button>
           </div>
@@ -222,36 +230,42 @@ const AdvancedControl = () => {
                             {job.unique_id}
                           </p>
                           <div className="d-grid gap-2">
-                             <button
-                                className="btn btn-sm btn-outline-info"
-                                onClick={() => {
-                                    if (job.config) {
-                                        handleEditConfig(job.config, job.unique_id);
-                                    } else {
-                                        toast.error("No configuration available for this job.");
-                                    }
-                                }}
-                             >
-                                <i className="fa-solid fa-pen-to-square pe-2"></i>
-                                Edit Config
-                             </button>
-                             <button
-                                className="btn btn-sm btn-outline-danger"
-                                onClick={() => handleStopJob(job.unique_id)}
-                                disabled={!!stoppingJobId}
-                              >
-                                {stoppingJobId === job.unique_id ? (
-                                    <>
-                                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                        Stopping...
-                                    </>
-                                ) : (
-                                    <>
-                                        <i className="fa-solid fa-stop pe-2"></i> 
-                                        Stop Process
-                                    </>
-                                )}
-                              </button>
+                            <button
+                              className="btn btn-sm btn-outline-info"
+                              onClick={() => {
+                                if (job.config) {
+                                  handleEditConfig(job.config, job.unique_id);
+                                } else {
+                                  toast.error(
+                                    'No configuration available for this job.'
+                                  );
+                                }
+                              }}
+                            >
+                              <i className="fa-solid fa-pen-to-square pe-2"></i>
+                              Edit Config
+                            </button>
+                            <button
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => handleStopJob(job.unique_id)}
+                              disabled={!!stoppingJobId}
+                            >
+                              {stoppingJobId === job.unique_id ? (
+                                <>
+                                  <span
+                                    className="spinner-border spinner-border-sm me-2"
+                                    role="status"
+                                    aria-hidden="true"
+                                  ></span>
+                                  Stopping...
+                                </>
+                              ) : (
+                                <>
+                                  <i className="fa-solid fa-stop pe-2"></i>
+                                  Stop Process
+                                </>
+                              )}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -270,38 +284,53 @@ const AdvancedControl = () => {
         {/* Manual Job Launch */}
         <div className="col-lg-7">
           <div className="card h-100">
-            <div className={`card-header fw-bold border-secondary ${isEditing ? 'bg-warning text-dark' : 'bg-dark'}`}>
-              <i className={`fa-solid ${isEditing ? 'fa-pen-to-square' : 'fa-code'} me-2`}></i>
+            <div
+              className={`card-header fw-bold border-secondary ${
+                isEditing ? 'bg-warning text-dark' : 'bg-dark'
+              }`}
+            >
+              <i
+                className={`fa-solid ${
+                  isEditing ? 'fa-pen-to-square' : 'fa-code'
+                } me-2`}
+              ></i>
               {isEditing ? 'Editing Run Configuration' : 'Manual Job Launcher'}
             </div>
             <div className="card-body">
               {!isEditing && (
                 <div className="mb-3">
-                    <label className="form-label text-muted">Template</label>
-                    {isLoading ? (
+                  <label className="form-label text-muted">Template</label>
+                  {isLoading ? (
                     <div className="text-muted">Loading templates...</div>
-                    ) : (
+                  ) : (
                     <select
-                        className="form-select bg-dark text-light border-secondary"
-                        value={selectedTemplate}
-                        onChange={handleTemplateChange}
+                      className="form-select bg-dark text-light border-secondary"
+                      value={selectedTemplate}
+                      onChange={handleTemplateChange}
                     >
-                        {Array.isArray(templates)  && templates.map((t) => (
-                        <option key={t.name} value={t.name}>
-                            {t.displayName} {t.source === 'custom' && '(Custom)'}
-                        </option>
+                      {Array.isArray(templates) &&
+                        templates.map((t) => (
+                          <option key={t.name} value={t.name}>
+                            {t.displayName}
+                          </option>
                         ))}
                     </select>
-                    )}
+                  )}
                 </div>
               )}
 
               {isEditing && (
                 <div className="mb-3 d-flex justify-content-between align-items-center">
-                    <span className="text-warning small"><i className="fa-solid fa-circle-info me-1"></i>You are modifying a running configuration.</span>
-                    <button className="btn btn-sm btn-outline-secondary" onClick={handleStopEditing}>
-                        Cancel / Stop Editing
-                    </button>
+                  <span className="text-warning small">
+                    <i className="fa-solid fa-circle-info me-1"></i>You are
+                    modifying a running configuration.
+                  </span>
+                  <button
+                    className="btn btn-sm btn-outline-secondary"
+                    onClick={handleStopEditing}
+                  >
+                    Cancel / Stop Editing
+                  </button>
                 </div>
               )}
 
@@ -319,15 +348,23 @@ const AdvancedControl = () => {
                 disabled={!clientOnline || isExecuting}
               >
                 {isExecuting ? (
-                    <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Processing...
-                    </>
+                  <>
+                    <span
+                      className="spinner-border spinner-border-sm me-2"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                    Processing...
+                  </>
                 ) : (
-                    <>
-                        <i className={`fa-solid ${isEditing ? 'fa-rotate' : 'fa-terminal'} me-2`}></i> 
-                        {isEditing ? 'Terminate & Restart' : 'Execute'}
-                    </>
+                  <>
+                    <i
+                      className={`fa-solid ${
+                        isEditing ? 'fa-rotate' : 'fa-terminal'
+                      } me-2`}
+                    ></i>
+                    {isEditing ? 'Terminate & Restart' : 'Execute'}
+                  </>
                 )}
               </button>
             </div>

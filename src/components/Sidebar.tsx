@@ -47,11 +47,8 @@ export default function Sidebar() {
           icon="fa-sliders"
           label="Advanced Control"
         />
-        <SidebarLink
-          href="/templates"
-          icon="fa-file-code"
-          label="Templates"
-        />
+        <SidebarLink href="/templates" icon="fa-file-code" label="Templates" />
+        <SidebarLink href="/run-types" icon="fa-tags" label="Run Types" />
       </div>
 
       <div className="mt-auto p-3 border-top border-secondary text-muted small">
