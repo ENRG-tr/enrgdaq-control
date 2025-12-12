@@ -53,10 +53,7 @@ export default function Sidebar() {
 
       <div className="mt-auto p-3 border-top border-secondary text-muted small">
         <div>
-          <i className="fa-solid fa-server me-2"></i>v2.0 (Next.js)
-        </div>
-        <div>
-          <i className="fa-solid fa-database me-2"></i>SQLite + Runs
+          <i className="fa-solid fa-server me-2"></i>ENRGDAQ Control
         </div>
       </div>
     </div>
