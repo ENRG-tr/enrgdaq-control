@@ -5,10 +5,13 @@ const api = axios.create({
 });
 
 export class ENRGDAQClient {
-  static async getClients(): Promise<string[]> {
+  static async getClients(): Promise<{ id: string; tags: string[] }[]> {
     try {
       const { data } = await api.get('/clients');
-      return Object.keys(data);
+      return Object.entries(data).map(([key, value]: [string, any]) => ({
+        id: key,
+        tags: value?.info?.supervisor_tags || [],
+      }));
     } catch (e) {
       console.error('Error fetching clients:', e);
       return [];

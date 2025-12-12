@@ -30,6 +30,25 @@ const RunDashboard = () => {
     fetchRunTypes();
   }, [fetchRunTypes]);
 
+  const activeRunType = runTypes.find(
+    (rt) =>
+      rt.id === (selectedRunTypeId === '' ? -1 : Number(selectedRunTypeId))
+  );
+
+  const filteredClients = React.useMemo(() => {
+    if (
+      !activeRunType ||
+      !activeRunType.requiredTags ||
+      activeRunType.requiredTags.length === 0
+    ) {
+      return clients;
+    }
+    console.log(activeRunType.requiredTags, clients);
+    return clients.filter((c) => {
+      return activeRunType.requiredTags!.every((tag) => c.tags.includes(tag));
+    });
+  }, [clients, activeRunType]);
+
   const handleStart = async () => {
     if (!description) return;
     setIsStarting(true);
@@ -80,9 +99,9 @@ const RunDashboard = () => {
             value={selectedClient || ''}
             onChange={(e) => selectClient(e.target.value)}
           >
-            {clients.map((c) => (
-              <option key={c} value={c}>
-                {c}
+            {filteredClients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.id}
               </option>
             ))}
           </select>

@@ -1,0 +1,1 @@
+ALTER TABLE "run_types" ADD COLUMN "required_tags" json;

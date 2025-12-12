@@ -154,8 +154,8 @@ const AdvancedControl = () => {
             onChange={(e) => selectClient(e.target.value)}
           >
             {clients.map((c) => (
-              <option key={c} value={c}>
-                {c}
+              <option key={c.id} value={c.id}>
+                {c.id}
               </option>
             ))}
           </select>

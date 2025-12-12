@@ -4,7 +4,7 @@ import type { Run } from './types';
 
 interface AppState {
   // Client State
-  clients: string[];
+  clients: { id: string; tags: string[] }[];
   selectedClient: string | null;
   clientStatus: any;
   clientOnline: boolean;
@@ -49,7 +49,7 @@ export const useStore = create<AppState>((set, get) => ({
       const clients = await API.getClients();
       set({ clients });
       if (!get().selectedClient && clients.length > 0) {
-        set({ selectedClient: clients[0] });
+        set({ selectedClient: clients[0].id });
       }
     } catch (e) {
       console.error('Failed to fetch clients', e);

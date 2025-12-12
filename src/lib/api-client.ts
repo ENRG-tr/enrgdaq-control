@@ -25,6 +25,7 @@ export interface RunType {
   id: number;
   name: string;
   description: string | null;
+  requiredTags: string[] | null;
 }
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
@@ -33,7 +34,7 @@ const api = axios.create({
 });
 
 export const API = {
-  async getClients(): Promise<string[]> {
+  async getClients(): Promise<{ id: string; tags: string[] }[]> {
     const { data } = await api.get('/clients');
     return data;
   },
@@ -54,6 +55,7 @@ export const API = {
   async createRunType(createData: {
     name: string;
     description?: string;
+    requiredTags?: string[];
   }): Promise<RunType> {
     const { data } = await api.post('/run-types', createData);
     return data;
@@ -61,7 +63,7 @@ export const API = {
 
   async updateRunType(
     id: number,
-    updateData: { name?: string; description?: string }
+    updateData: { name?: string; description?: string; requiredTags?: string[] }
   ): Promise<RunType> {
     const { data } = await api.post(`/run-types/${id}/update`, updateData);
     return data;

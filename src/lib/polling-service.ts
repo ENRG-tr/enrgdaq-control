@@ -41,7 +41,7 @@ class PollingService {
         const clients = await ENRGDAQClient.getClients();
         // Only update if changed to avoid unnecessary churn?
         // Actually strings comparison is cheap.
-        this.clients = clients;
+        this.clients = clients.map((client) => client.id);
       } catch (error) {
         console.error('[PollingService] Error polling clients:', error);
       }

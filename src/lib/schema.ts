@@ -26,6 +26,7 @@ export const runTypes = pgTable('run_types', {
   id: serial('id').primaryKey(),
   name: text('name').notNull().unique(),
   description: text('description'),
+  requiredTags: json('required_tags').$type<string[]>(),
 });
 
 // Templates table - DAQ job configuration templates
