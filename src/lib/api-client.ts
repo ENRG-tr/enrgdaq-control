@@ -62,12 +62,12 @@ export const API = {
     id: number,
     updateData: { name?: string; description?: string }
   ): Promise<RunType> {
-    const { data } = await api.put(`/run-types/${id}`, updateData);
+    const { data } = await api.post(`/run-types/${id}/update`, updateData);
     return data;
   },
 
   async deleteRunType(id: number): Promise<void> {
-    await api.delete(`/run-types/${id}`);
+    await api.post(`/run-types/${id}/delete`);
   },
 
   async startRun(
@@ -107,12 +107,12 @@ export const API = {
     id: number,
     updateData: { displayName?: string; config?: string; runTypeIds?: number[] }
   ): Promise<Template> {
-    const { data } = await api.put(`/templates/${id}`, updateData);
+    const { data } = await api.post(`/templates/${id}/update`, updateData);
     return data;
   },
 
   async deleteTemplate(id: number): Promise<void> {
-    await api.delete(`/templates/${id}`);
+    await api.post(`/templates/${id}/delete`);
   },
 
   async getStatus(clientId: string) {
