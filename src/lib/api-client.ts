@@ -27,8 +27,9 @@ export interface RunType {
   description: string | null;
 }
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: basePath + '/api',
 });
 
 export const API = {
