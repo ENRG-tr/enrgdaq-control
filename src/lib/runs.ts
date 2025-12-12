@@ -120,7 +120,9 @@ export class RunController {
     // 5. Start Jobs on CNC
     try {
       for (const rc of runConfigs) {
-        const uniqueJobName = `${rc.name}_run-${run.id}_${Date.now()}`;
+        const uniqueJobName = `${rc.name}_run-${run.id}_${
+          crypto.randomUUID().split('-')[0]
+        }`;
         const configWithUtf8 =
           `daq_job_unique_id = "${uniqueJobName}"\n` + rc.config;
 

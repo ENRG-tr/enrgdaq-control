@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ENRGDAQClient } from '@/lib/enrgdaq-client';
+import { pollingService } from '@/lib/polling-service';
 
 export async function GET(
   request: Request,
@@ -7,7 +7,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const status = await ENRGDAQClient.getStatus(id);
+    // Using cached status from the polling service
+    const status = pollingService.getStatus(id);
+
+    if (!status) {
+      return NextResponse.json(null);
+    }
+
     return NextResponse.json(status);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
