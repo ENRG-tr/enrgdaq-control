@@ -224,9 +224,17 @@ const RunDashboard = () => {
               <div className="alert alert-info border-info d-flex align-items-center">
                 <i className="fa-solid fa-info-circle fa-2x me-3"></i>
                 <div>
-                  <strong>Auto-Configuration:</strong> Starting a run will
-                  automatically configure the CAEN Digitizer (Optical Link) and
-                  store data to <code>runs/[ID]/...</code>.
+                  {activeRunType ? (
+                    <>
+                      <p className="mb-1">
+                        <strong>{activeRunType.name}</strong>
+                      </p>
+                      {activeRunType.description ||
+                        'No description available for this run type.'}
+                    </>
+                  ) : (
+                    <>Please select a run type to view its description.</>
+                  )}
                 </div>
               </div>
 
