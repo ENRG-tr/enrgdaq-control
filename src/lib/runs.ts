@@ -294,7 +294,12 @@ export class RunController {
         templateRunTypes,
         eq(templates.id, templateRunTypes.templateId)
       )
-      .where(and(eq(templateRunTypes.runTypeId, runTypeId)));
+      .where(
+        and(
+          eq(templateRunTypes.runTypeId, runTypeId),
+          eq(templates.type, 'run')
+        )
+      );
 
     return rows.map((t) => {
       let config = t.config.replace(/\{RUN_ID\}/g, runId.toString());

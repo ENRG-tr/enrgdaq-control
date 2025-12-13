@@ -15,7 +15,8 @@ export default function RunTypesPage() {
     name: string;
     description: string;
     requiredTags: string[];
-  }>({ name: '', description: '', requiredTags: [] });
+    templateIds: number[];
+  }>({ name: '', description: '', requiredTags: [], templateIds: [] });
   const [error, setError] = useState<string | null>(null);
 
   // Aggregated parameters state (from associated templates)
@@ -67,10 +68,14 @@ export default function RunTypesPage() {
     setSelectedRunType(rt);
     setIsCreating(false);
     setIsEditing(false);
+    const associatedIds = templates
+      .filter((t) => t.runTypeIds?.includes(rt.id))
+      .map((t) => t.id);
     setFormData({
       name: rt.name,
       description: rt.description || '',
       requiredTags: rt.requiredTags || [],
+      templateIds: associatedIds,
     });
     setError(null);
   };
@@ -79,7 +84,12 @@ export default function RunTypesPage() {
     setSelectedRunType(null);
     setIsCreating(true);
     setIsEditing(false);
-    setFormData({ name: '', description: '', requiredTags: [] });
+    setFormData({
+      name: '',
+      description: '',
+      requiredTags: [],
+      templateIds: [],
+    });
     setError(null);
     setAggregatedParams([]);
   };
@@ -91,6 +101,7 @@ export default function RunTypesPage() {
       name: selectedRunType.name,
       description: selectedRunType.description || '',
       requiredTags: selectedRunType.requiredTags || [],
+      templateIds: formData.templateIds,
     });
   };
 
@@ -98,13 +109,22 @@ export default function RunTypesPage() {
     setIsCreating(false);
     setIsEditing(false);
     if (selectedRunType) {
+      const associatedIds = templates
+        .filter((t) => t.runTypeIds?.includes(selectedRunType.id))
+        .map((t) => t.id);
       setFormData({
         name: selectedRunType.name,
         description: selectedRunType.description || '',
         requiredTags: selectedRunType.requiredTags || [],
+        templateIds: associatedIds,
       });
     } else {
-      setFormData({ name: '', description: '', requiredTags: [] });
+      setFormData({
+        name: '',
+        description: '',
+        requiredTags: [],
+        templateIds: [],
+      });
     }
     setError(null);
   };
@@ -113,7 +133,16 @@ export default function RunTypesPage() {
     setError(null);
     try {
       if (isCreating) {
-        const newRunType = await API.createRunType(formData);
+        const newRunType = await API.createRunType({
+          name: formData.name,
+          description: formData.description,
+          requiredTags: formData.requiredTags,
+        });
+
+        if (formData.templateIds.length > 0) {
+          await API.updateRunTypeTemplates(newRunType.id, formData.templateIds);
+        }
+
         await loadData();
         setSelectedRunType(newRunType);
         setIsCreating(false);
@@ -123,6 +152,13 @@ export default function RunTypesPage() {
           description: formData.description,
           requiredTags: formData.requiredTags,
         });
+
+        // Update templates
+        await API.updateRunTypeTemplates(
+          selectedRunType.id,
+          formData.templateIds
+        );
+
         await loadData();
         setSelectedRunType(updated);
         setIsEditing(false);
@@ -375,8 +411,8 @@ export default function RunTypesPage() {
             </div>
           )}
 
-          {/* Associated Templates Section - Only show when viewing an existing RunType */}
-          {selectedRunType && !isCreating && (
+          {/* Associated Templates Section */}
+          {(selectedRunType || isCreating) && (
             <div className="card border-secondary bg-dark shadow-sm mt-4">
               <div className="card-header border-secondary d-flex justify-content-between align-items-center py-3">
                 <span className="fw-bold">
@@ -384,12 +420,7 @@ export default function RunTypesPage() {
                   Templates
                 </span>
                 <span className="badge bg-secondary">
-                  {
-                    templates.filter((t) =>
-                      t.runTypeIds?.includes(selectedRunType.id)
-                    ).length
-                  }{' '}
-                  Selected
+                  {formData.templateIds.length} Selected
                 </span>
               </div>
               <div className="card-body">
@@ -402,46 +433,37 @@ export default function RunTypesPage() {
                 {templates.length > 0 ? (
                   <div className="row g-2">
                     {templates.map((t) => {
-                      const isAssociated = t.runTypeIds?.includes(
-                        selectedRunType.id
-                      );
+                      const isAssociated = formData.templateIds.includes(t.id);
                       const isMessage = t.type === 'message';
+                      const isInteractive = isCreating || isEditing;
                       return (
                         <div key={t.id} className="col-md-6 col-lg-4">
                           <div
-                            className={`p-2 border rounded d-flex align-items-center cursor-pointer ${
+                            className={`p-2 border rounded d-flex align-items-center ${
+                              isInteractive ? 'cursor-pointer' : ''
+                            } ${
                               isAssociated
                                 ? isMessage
                                   ? 'border-info bg-info bg-opacity-10'
                                   : 'border-success bg-success bg-opacity-10'
                                 : 'border-secondary'
                             }`}
-                            style={{ cursor: 'pointer' }}
-                            onClick={async () => {
-                              // Toggle selection
-                              const currentIds = templates
-                                .filter((tmpl) =>
-                                  tmpl.runTypeIds?.includes(selectedRunType.id)
-                                )
-                                .map((tmpl) => tmpl.id);
+                            style={{
+                              cursor: isInteractive ? 'pointer' : 'default',
+                              opacity: isInteractive ? 1 : 0.8,
+                            }}
+                            onClick={() => {
+                              if (!isInteractive) return;
 
                               let newIds: number[];
                               if (isAssociated) {
-                                newIds = currentIds.filter((id) => id !== t.id);
-                              } else {
-                                newIds = [...currentIds, t.id];
-                              }
-
-                              try {
-                                await API.updateRunTypeTemplates(
-                                  selectedRunType.id,
-                                  newIds
+                                newIds = formData.templateIds.filter(
+                                  (id) => id !== t.id
                                 );
-                                // Reload templates to refresh associations
-                                await loadData();
-                              } catch (e: any) {
-                                setError(e.response?.data?.error || e.message);
+                              } else {
+                                newIds = [...formData.templateIds, t.id];
                               }
+                              setFormData({ ...formData, templateIds: newIds });
                             }}
                           >
                             <input
@@ -449,6 +471,7 @@ export default function RunTypesPage() {
                               className="form-check-input me-2"
                               checked={isAssociated}
                               onChange={() => {}}
+                              disabled={!isInteractive}
                               style={{ pointerEvents: 'none' }}
                             />
                             <div className="flex-grow-1">
