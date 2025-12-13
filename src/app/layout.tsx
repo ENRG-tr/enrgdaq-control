@@ -1,5 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { Inter } from 'next/font/google';
 import Sidebar from '@/components/Sidebar';
 import GlobalPoller from '@/components/GlobalPoller';
@@ -12,11 +13,14 @@ export const metadata: Metadata = {
   description: 'Control system for ENRGDAQ',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const headersList = await headers();
+  const isAdmin = headersList.get('X-Admin-Access') === '1';
+
   return (
     <html lang="en" data-bs-theme="dark">
       <head>
@@ -41,7 +45,7 @@ export default function RootLayout({
         <div className="container-fluid vh-100 d-flex flex-column overflow-hidden p-0">
           <div className="row g-0 flex-grow-1 h-100">
             {/* Sidebar */}
-            <Sidebar />
+            <Sidebar isAdmin={isAdmin} />
 
             {/* Main Content Area */}
             <div className="col d-flex flex-column h-100 overflow-hidden bg-dark">
