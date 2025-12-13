@@ -102,6 +102,16 @@ export default function TemplatesPage() {
     }
   };
 
+  const generateInternalName = (displayName: string) => {
+    return displayName
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^A-Z0-9_]/g, ''); // Ensure only safe chars
+  };
+
+  const activeRunTypeIds = runTypes.map((rt) => rt.id);
+
   const filteredTemplates = templates.filter((t) => {
     if (typeFilter === 'all') return true;
     return t.type === typeFilter;
@@ -194,7 +204,6 @@ export default function TemplatesPage() {
         targetDaqJobType: '',
       });
     }
-    setError(null);
     setError(null);
     setIsAddingParam(false);
     setEditingParamId(null);
@@ -546,15 +555,12 @@ export default function TemplatesPage() {
                     type="text"
                     className="form-control bg-dark text-light border-secondary"
                     value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    disabled={!isCreating}
-                    placeholder="e.g. calibration_v1"
+                    readOnly
+                    placeholder="Auto-generated"
                   />
                   {isCreating && (
                     <div className="form-text">
-                      Unique identifier for the system (snake_case recommended).
+                      Unique identifier (auto-generated from Display Name).
                     </div>
                   )}
                 </div>
@@ -566,7 +572,13 @@ export default function TemplatesPage() {
                     className="form-control bg-dark text-light border-secondary"
                     value={formData.displayName}
                     onChange={(e) =>
-                      setFormData({ ...formData, displayName: e.target.value })
+                      setFormData((prev) => ({
+                        ...prev,
+                        displayName: e.target.value,
+                        name: isCreating
+                          ? generateInternalName(e.target.value)
+                          : prev.name,
+                      }))
                     }
                     disabled={!isCreating && !isEditing}
                     placeholder="e.g. Calibration V1"
@@ -678,12 +690,7 @@ export default function TemplatesPage() {
                                   type="text"
                                   className="form-control form-control-sm bg-dark text-light border-secondary"
                                   value={editParamData.name}
-                                  onChange={(e) =>
-                                    setEditParamData({
-                                      ...editParamData,
-                                      name: e.target.value,
-                                    })
-                                  }
+                                  readOnly
                                   placeholder="Internal Name"
                                 />
                               </div>
@@ -696,6 +703,9 @@ export default function TemplatesPage() {
                                     setEditParamData({
                                       ...editParamData,
                                       displayName: e.target.value,
+                                      name: generateInternalName(
+                                        e.target.value
+                                      ),
                                     })
                                   }
                                   placeholder="Display Name"
@@ -833,13 +843,8 @@ export default function TemplatesPage() {
                               type="text"
                               className="form-control form-control-sm bg-dark text-light border-secondary"
                               value={newParam.name}
-                              onChange={(e) =>
-                                setNewParam({
-                                  ...newParam,
-                                  name: e.target.value,
-                                })
-                              }
-                              placeholder="e.g. voltage"
+                              readOnly
+                              placeholder="Auto-generated"
                             />
                           </div>
                           <div className="col-md-6">
@@ -854,6 +859,7 @@ export default function TemplatesPage() {
                                 setNewParam({
                                   ...newParam,
                                   displayName: e.target.value,
+                                  name: generateInternalName(e.target.value),
                                 })
                               }
                               placeholder="e.g. Bias Voltage"
