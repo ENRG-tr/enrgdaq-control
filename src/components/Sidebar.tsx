@@ -1,8 +1,10 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { API } from '@/lib/api-client';
 
 const SidebarLink = ({
   href,
@@ -42,7 +44,15 @@ const SidebarLink = ({
   );
 };
 
-export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
+export default function Sidebar() {
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    API.getAuthStatus()
+      .then((data) => setIsAdmin(data.isAdmin))
+      .catch(() => setIsAdmin(false));
+  }, []);
+
   return (
     <div
       className="col-auto sidebar d-flex flex-column border-end border-secondary bg-dark text-white"
@@ -68,19 +78,19 @@ export default function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
           href="/advanced"
           icon="fa-sliders"
           label="Advanced Control"
-          isLocked
+          isLocked={!isAdmin}
         />
         <SidebarLink
           href="/templates"
           icon="fa-file-code"
           label="Templates"
-          isLocked
+          isLocked={!isAdmin}
         />
         <SidebarLink
           href="/run-types"
           icon="fa-tags"
           label="Run Types"
-          isLocked
+          isLocked={!isAdmin}
         />
       </div>
 

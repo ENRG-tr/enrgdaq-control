@@ -74,6 +74,11 @@ const api = axios.create({
 });
 
 export const API = {
+  async getAuthStatus(): Promise<{ isAdmin: boolean }> {
+    const { data } = await api.get('/auth/status');
+    return data;
+  },
+
   async getClients(): Promise<{ id: string; tags: string[] }[]> {
     const { data } = await api.get('/clients');
     return data;
