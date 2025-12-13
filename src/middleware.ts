@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { checkAdminAccess } from '@/lib/auth';
 
 export function middleware(request: NextRequest) {
-  const hasAuth = request.headers.get('X-Admin-Access')?.trim() === '1';
+  const hasAuth = checkAdminAccess(request.headers);
 
   if (!hasAuth) {
     const { pathname } = request.nextUrl;

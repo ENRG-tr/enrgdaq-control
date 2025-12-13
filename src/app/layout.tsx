@@ -5,6 +5,7 @@ import { Inter } from 'next/font/google';
 import Sidebar from '@/components/Sidebar';
 import GlobalPoller from '@/components/GlobalPoller';
 import { Toaster } from 'react-hot-toast';
+import { checkAdminAccess } from '@/lib/auth';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -19,7 +20,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const headersList = await headers();
-  const isAdmin = headersList.get('X-Admin-Access') === '1';
+  const isAdmin = checkAdminAccess(headersList);
 
   return (
     <html lang="en" data-bs-theme="dark">
