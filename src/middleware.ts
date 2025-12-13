@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const hasAuth = request.headers.get('X-Admin-Access') === '1';
+  const hasAuth = request.headers.get('X-Admin-Access')?.trim() === '1';
 
   if (!hasAuth) {
     const { pathname } = request.nextUrl;
