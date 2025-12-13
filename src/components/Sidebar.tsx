@@ -42,6 +42,12 @@ export default function Sidebar() {
 
       <div className="nav flex-column px-2">
         <SidebarLink href="/" icon="fa-chart-line" label="Run Dashboard" />
+        <SidebarLink href="/messages" icon="fa-envelope" label="Messages" />
+        <div className="nav-item">
+          <div className="nav-link d-flex align-items-center px-3 py-2">
+            <div className="fw-bold text-muted">Advanced</div>
+          </div>
+        </div>
         <SidebarLink
           href="/advanced"
           icon="fa-sliders"

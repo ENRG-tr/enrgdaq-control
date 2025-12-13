@@ -16,9 +16,13 @@ export interface Template {
   name: string;
   displayName: string;
   config: string;
-  type: string;
+  type: string; // 'normal' | 'run' | 'message'
   editable: boolean;
   runTypeIds: number[];
+  // Message template fields
+  messageType?: string | null;
+  payloadTemplate?: string | null;
+  targetDaqJobType?: string | null; // Target DAQ job type, null = broadcast
 }
 
 export interface RunType {
@@ -26,6 +30,42 @@ export interface RunType {
   name: string;
   description: string | null;
   requiredTags: string[] | null;
+}
+
+// Aggregated parameter from templates, with optional run type default
+export interface AggregatedParameter {
+  id: number;
+  templateId: number;
+  name: string;
+  displayName: string;
+  type: string;
+  defaultValue: string | null;
+  required: boolean;
+  runTypeDefault?: string | null;
+}
+
+export interface TemplateParameter {
+  id: number;
+  templateId: number;
+  name: string;
+  displayName: string;
+  type: string;
+  defaultValue: string | null;
+  required: boolean;
+}
+
+export interface Message {
+  id: number;
+  templateId: number | null;
+  clientId: string;
+  targetDaqJobType: string | null;
+  targetDaqJobUniqueId: string | null;
+  messageType: string;
+  payload: string;
+  status: string;
+  errorMessage: string | null;
+  sentAt: string;
+  runId: number | null;
 }
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
@@ -52,6 +92,30 @@ export const API = {
     return data;
   },
 
+  /**
+   * Get aggregated parameters from all templates associated with this run type
+   */
+  async getAggregatedParametersForRunType(
+    runTypeId: number
+  ): Promise<AggregatedParameter[]> {
+    const { data } = await api.get(`/run-types/${runTypeId}/parameters`);
+    return data;
+  },
+
+  /**
+   * Set or remove a default value for a parameter on a run type
+   */
+  async setRunTypeParameterDefault(
+    runTypeId: number,
+    parameterId: number,
+    defaultValue: string | null
+  ): Promise<void> {
+    await api.post(`/run-types/${runTypeId}/parameters`, {
+      parameterId,
+      defaultValue,
+    });
+  },
+
   async createRunType(createData: {
     name: string;
     description?: string;
@@ -73,15 +137,24 @@ export const API = {
     await api.post(`/run-types/${id}/delete`);
   },
 
+  async updateRunTypeTemplates(
+    id: number,
+    templateIds: number[]
+  ): Promise<void> {
+    await api.post(`/run-types/${id}/templates`, { templateIds });
+  },
+
   async startRun(
     description: string,
     clientId: string,
-    runTypeId?: number
+    runTypeId?: number,
+    parameterValues?: Record<string, string>
   ): Promise<Run> {
     const { data } = await api.post('/runs', {
       description,
       clientId,
       runTypeId,
+      parameterValues,
     });
     return data;
   },
@@ -99,8 +172,12 @@ export const API = {
   async createTemplate(createData: {
     name: string;
     displayName: string;
-    config: string;
+    config?: string;
+    type?: string;
     runTypeIds?: number[];
+    messageType?: string;
+    payloadTemplate?: string;
+    targetDaqJobType?: string | null;
   }): Promise<Template> {
     const { data } = await api.post('/templates', createData);
     return data;
@@ -108,7 +185,15 @@ export const API = {
 
   async updateTemplate(
     id: number,
-    updateData: { displayName?: string; config?: string; runTypeIds?: number[] }
+    updateData: {
+      displayName?: string;
+      config?: string;
+      type?: string;
+      runTypeIds?: number[];
+      messageType?: string;
+      payloadTemplate?: string;
+      targetDaqJobType?: string | null;
+    }
   ): Promise<Template> {
     const { data } = await api.post(`/templates/${id}/update`, updateData);
     return data;
@@ -149,6 +234,85 @@ export const API = {
 
   async getDAQJobSchemas(): Promise<Record<string, unknown>> {
     const { data } = await api.get('/templates/daqjobs');
+    return data;
+  },
+
+  // ========== Messages ==========
+
+  async getMessages(
+    page: number = 1,
+    limit: number = 20
+  ): Promise<{ messages: Message[]; total: number }> {
+    const { data } = await api.get('/messages', { params: { page, limit } });
+    return data;
+  },
+
+  async getMessageTemplates(): Promise<Template[]> {
+    const { data } = await api.get('/messages/templates');
+    return data;
+  },
+
+  async getMessageSchemas(): Promise<Record<string, unknown>> {
+    const { data } = await api.get('/messages/schemas');
+    return data;
+  },
+
+  async getTemplateParameters(
+    templateId: number
+  ): Promise<TemplateParameter[]> {
+    const { data } = await api.get(`/templates/${templateId}/parameters`);
+    return data;
+  },
+
+  async createTemplateParameter(
+    templateId: number,
+    paramData: {
+      name: string;
+      displayName: string;
+      type?: string;
+      defaultValue?: string;
+      required?: boolean;
+    }
+  ): Promise<TemplateParameter> {
+    const { data } = await api.post(
+      `/templates/${templateId}/parameters`,
+      paramData
+    );
+    return data;
+  },
+
+  async updateTemplateParameter(
+    paramId: number,
+    updateData: {
+      name?: string;
+      displayName?: string;
+      type?: string;
+      defaultValue?: string;
+      required?: boolean;
+    }
+  ): Promise<TemplateParameter> {
+    const { data } = await api.put(
+      `/templates/parameters/${paramId}`,
+      updateData
+    );
+    return data;
+  },
+
+  async deleteTemplateParameter(paramId: number): Promise<void> {
+    await api.delete(`/templates/parameters/${paramId}`);
+  },
+
+  async sendMessage(params: {
+    templateId?: number;
+    clientId: string;
+    targetDaqJobType?: string | null;
+    parameterValues?: Record<string, string>;
+    runId?: number | null;
+    // For raw messages
+    messageType?: string;
+    payload?: string;
+  }): Promise<Message> {
+    const { data } = await api.post('/messages', params);
     return data;
   },
 };

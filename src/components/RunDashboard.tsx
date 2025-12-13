@@ -1,6 +1,7 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
+import { API, type AggregatedParameter } from '@/lib/api-client';
 import toast from 'react-hot-toast';
 
 const RunDashboard = () => {
@@ -26,9 +27,49 @@ const RunDashboard = () => {
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
 
-  React.useEffect(() => {
+  // Parameter state (aggregated from templates)
+  const [parameters, setParameters] = useState<AggregatedParameter[]>([]);
+  const [parameterValues, setParameterValues] = useState<
+    Record<string, string>
+  >({});
+  const [loadingParams, setLoadingParams] = useState(false);
+
+  useEffect(() => {
     fetchRunTypes();
   }, [fetchRunTypes]);
+
+  // Fetch aggregated parameters when run type changes
+  useEffect(() => {
+    if (selectedRunTypeId === '') {
+      setParameters([]);
+      setParameterValues({});
+      return;
+    }
+
+    const loadParameters = async () => {
+      setLoadingParams(true);
+      try {
+        const params = await API.getAggregatedParametersForRunType(
+          Number(selectedRunTypeId)
+        );
+        setParameters(params);
+        // Initialize values with run type default > template default > empty
+        const initialValues: Record<string, string> = {};
+        for (const param of params) {
+          initialValues[param.name] =
+            param.runTypeDefault || param.defaultValue || '';
+        }
+        setParameterValues(initialValues);
+      } catch (e) {
+        console.error('Failed to fetch parameters:', e);
+        setParameters([]);
+      } finally {
+        setLoadingParams(false);
+      }
+    };
+
+    loadParameters();
+  }, [selectedRunTypeId]);
 
   const activeRunType = runTypes.find(
     (rt) =>
@@ -51,13 +92,24 @@ const RunDashboard = () => {
 
   const handleStart = async () => {
     if (!description) return;
+
+    // Validate required parameters
+    for (const param of parameters) {
+      if (param.required && !parameterValues[param.name]) {
+        toast.error(`Please fill in required parameter: ${param.displayName}`);
+        return;
+      }
+    }
+
     setIsStarting(true);
     try {
       await startRun(
         description,
-        selectedRunTypeId ? Number(selectedRunTypeId) : undefined
+        selectedRunTypeId ? Number(selectedRunTypeId) : undefined,
+        parameterValues
       );
       setDescription('');
+      setParameterValues({});
       toast.success('Acquisition started successfully');
     } catch (e: any) {
       console.error('Failed to start run:', e);
@@ -84,6 +136,13 @@ const RunDashboard = () => {
   const getRunTypeName = (typeId: number | null) => {
     if (!typeId) return '-';
     return runTypes.find((rt) => rt.id === typeId)?.name || 'Unknown';
+  };
+
+  const handleParameterChange = (paramName: string, value: string) => {
+    setParameterValues((prev) => ({
+      ...prev,
+      [paramName]: value,
+    }));
   };
 
   return (
@@ -220,6 +279,67 @@ const RunDashboard = () => {
                   This will be stored in the PostgreSQL runs table.
                 </div>
               </div>
+
+              {/* Parameter Inputs */}
+              {loadingParams && (
+                <div className="text-muted small mb-3">
+                  <span className="spinner-border spinner-border-sm me-2"></span>
+                  Loading parameters...
+                </div>
+              )}
+              {parameters.length > 0 && (
+                <div className="mb-4 p-3 border border-secondary rounded">
+                  <label className="form-label text-info fw-bold mb-3">
+                    <i className="fa-solid fa-sliders me-2"></i>Run Parameters
+                  </label>
+                  {parameters.map((param) => (
+                    <div key={param.id} className="mb-3">
+                      <label className="form-label text-muted small">
+                        {param.displayName}
+                        {param.required && (
+                          <span className="text-danger ms-1">*</span>
+                        )}
+                      </label>
+                      {param.type === 'bool' ? (
+                        <select
+                          className="form-select bg-dark text-light border-secondary"
+                          value={parameterValues[param.name] || ''}
+                          onChange={(e) =>
+                            handleParameterChange(param.name, e.target.value)
+                          }
+                          disabled={!!activeRun || !clientOnline}
+                        >
+                          <option value="">-- Select --</option>
+                          <option value="true">True</option>
+                          <option value="false">False</option>
+                        </select>
+                      ) : (
+                        <input
+                          type={
+                            param.type === 'int' || param.type === 'float'
+                              ? 'number'
+                              : 'text'
+                          }
+                          step={param.type === 'float' ? '0.01' : undefined}
+                          className="form-control bg-dark text-light border-secondary"
+                          placeholder={
+                            param.defaultValue || `Enter ${param.displayName}`
+                          }
+                          value={parameterValues[param.name] || ''}
+                          onChange={(e) =>
+                            handleParameterChange(param.name, e.target.value)
+                          }
+                          disabled={!!activeRun || !clientOnline}
+                        />
+                      )}
+                      <div className="form-text">
+                        Use <code>{`{${param.name.toUpperCase()}}`}</code> in
+                        templates
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="alert alert-info border-info d-flex align-items-center">
                 <i className="fa-solid fa-info-circle fa-2x me-3"></i>

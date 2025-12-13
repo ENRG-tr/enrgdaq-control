@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1765393973447,
-      "tag": "0000_charming_wendigo",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1765458142700,
-      "tag": "0001_giant_karnak",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1765459654030,
-      "tag": "0002_simple_sandman",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1765473877025,
-      "tag": "0003_blushing_mongu",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1765530096136,
-      "tag": "0004_friendly_zarek",
+      "when": 1765618834782,
+      "tag": "0000_tiny_gwen_stacy",
       "breakpoints": true
     }
   ]

@@ -59,4 +59,39 @@ export class ENRGDAQClient {
     const { data } = await api.get('/templates/daqjobs');
     return data;
   }
+
+  /**
+   * Get message schemas from ENRGDAQ API
+   * Returns available message types and their JSON schemas
+   */
+  static async getMessageSchemas(): Promise<Record<string, unknown>> {
+    const { data } = await api.get('/templates/messages');
+    return data;
+  }
+
+  /**
+   * Send a message to a specific DAQ job or broadcast to all jobs
+   * @param clientId - The client/supervisor ID
+   * @param messageType - The message type (e.g., 'DAQJobMessageStop')
+   * @param payload - The JSON payload string
+   * @param targetDaqJobUniqueId - Optional target DAQ job unique ID (null = broadcast)
+   */
+  static async sendMessage(
+    clientId: string,
+    messageType: string,
+    payload: string,
+    targetDaqJobUniqueId?: string | null
+  ): Promise<void> {
+    try {
+      await api.post(`/clients/${clientId}/send_message`, {
+        message_type: messageType,
+        payload: payload,
+        target_daq_job_unique_id: targetDaqJobUniqueId || null,
+      });
+    } catch (e: any) {
+      throw new Error(
+        `Failed to send message: ${e.response?.data || e.message}`
+      );
+    }
+  }
 }

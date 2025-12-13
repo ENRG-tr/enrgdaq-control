@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { API, RunType } from '@/lib/api-client';
+import { API, RunType, AggregatedParameter, Template } from '@/lib/api-client';
 
 export default function RunTypesPage() {
   const [runTypes, setRunTypes] = useState<RunType[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedRunType, setSelectedRunType] = useState<RunType | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -17,16 +18,45 @@ export default function RunTypesPage() {
   }>({ name: '', description: '', requiredTags: [] });
   const [error, setError] = useState<string | null>(null);
 
+  // Aggregated parameters state (from associated templates)
+  const [aggregatedParams, setAggregatedParams] = useState<
+    AggregatedParameter[]
+  >([]);
+
   useEffect(() => {
     loadData();
   }, []);
 
+  // Load aggregated parameters when a run type is selected
+  useEffect(() => {
+    if (selectedRunType) {
+      loadAggregatedParameters(selectedRunType.id);
+    } else {
+      setAggregatedParams([]);
+    }
+  }, [selectedRunType]);
+
   const loadData = async () => {
     try {
-      const data = await API.getRunTypes();
-      setRunTypes(data);
+      const [rtData, tData] = await Promise.all([
+        API.getRunTypes(),
+        API.getTemplates(),
+      ]);
+      setRunTypes(rtData);
+      // Include both run and message templates
+      setTemplates(tData);
     } catch (e: any) {
       setError(e.message);
+    }
+  };
+
+  const loadAggregatedParameters = async (runTypeId: number) => {
+    try {
+      const params = await API.getAggregatedParametersForRunType(runTypeId);
+      setAggregatedParams(params);
+    } catch (e) {
+      console.error('Failed to load aggregated parameters:', e);
+      setAggregatedParams([]);
     }
   };
 
@@ -49,10 +79,9 @@ export default function RunTypesPage() {
     setSelectedRunType(null);
     setIsCreating(true);
     setIsEditing(false);
-    setIsCreating(true);
-    setIsEditing(false);
     setFormData({ name: '', description: '', requiredTags: [] });
     setError(null);
+    setAggregatedParams([]);
   };
 
   const handleStartEdit = () => {
@@ -122,6 +151,26 @@ export default function RunTypesPage() {
     }
   };
 
+  /**
+   * Set or remove a default value for a parameter on this run type
+   */
+  const handleSetParameterDefault = async (
+    parameterId: number,
+    defaultValue: string | null
+  ) => {
+    if (!selectedRunType) return;
+    try {
+      await API.setRunTypeParameterDefault(
+        selectedRunType.id,
+        parameterId,
+        defaultValue
+      );
+      await loadAggregatedParameters(selectedRunType.id);
+    } catch (e: any) {
+      setError(e.response?.data?.error || e.message);
+    }
+  };
+
   return (
     <div className="container-fluid h-100 p-4 overflow-hidden d-flex flex-column">
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -165,7 +214,7 @@ export default function RunTypesPage() {
         </div>
 
         {/* Detail/Edit Column */}
-        <div className="col-md-8 h-100 d-flex flex-column">
+        <div className="col-md-8 h-100 d-flex flex-column overflow-auto">
           {error && (
             <div className="alert alert-danger mb-3">
               <i className="fa-solid fa-triangle-exclamation me-2"></i>
@@ -174,7 +223,7 @@ export default function RunTypesPage() {
           )}
 
           {selectedRunType || isCreating ? (
-            <div className="card h-100 border-secondary bg-dark shadow-sm">
+            <div className="card border-secondary bg-dark shadow-sm">
               <div className="card-header border-secondary d-flex justify-content-between align-items-center py-3">
                 <span className="fw-bold fs-5">
                   {isCreating
@@ -216,7 +265,7 @@ export default function RunTypesPage() {
                 </div>
               </div>
 
-              <div className="card-body overflow-auto">
+              <div className="card-body">
                 <div className="mb-3">
                   <label className="form-label text-muted">Name</label>
                   <input
@@ -323,6 +372,210 @@ export default function RunTypesPage() {
             <div className="h-100 d-flex flex-column justify-content-center align-items-center text-muted opacity-50 border border-secondary rounded border-dashed">
               <i className="fa-solid fa-tag fa-4x mb-3"></i>
               <h4>Select a run type to view details</h4>
+            </div>
+          )}
+
+          {/* Associated Templates Section - Only show when viewing an existing RunType */}
+          {selectedRunType && !isCreating && (
+            <div className="card border-secondary bg-dark shadow-sm mt-4">
+              <div className="card-header border-secondary d-flex justify-content-between align-items-center py-3">
+                <span className="fw-bold">
+                  <i className="fa-solid fa-file-code me-2"></i>Associated
+                  Templates
+                </span>
+                <span className="badge bg-secondary">
+                  {
+                    templates.filter((t) =>
+                      t.runTypeIds?.includes(selectedRunType.id)
+                    ).length
+                  }{' '}
+                  Selected
+                </span>
+              </div>
+              <div className="card-body">
+                <p className="text-muted small mb-3">
+                  Select which templates should be associated with this run
+                  type. Run templates define what DAQ jobs to start, while
+                  message templates define messages that can be sent during the
+                  run.
+                </p>
+                {templates.length > 0 ? (
+                  <div className="row g-2">
+                    {templates.map((t) => {
+                      const isAssociated = t.runTypeIds?.includes(
+                        selectedRunType.id
+                      );
+                      const isMessage = t.type === 'message';
+                      return (
+                        <div key={t.id} className="col-md-6 col-lg-4">
+                          <div
+                            className={`p-2 border rounded d-flex align-items-center cursor-pointer ${
+                              isAssociated
+                                ? isMessage
+                                  ? 'border-info bg-info bg-opacity-10'
+                                  : 'border-success bg-success bg-opacity-10'
+                                : 'border-secondary'
+                            }`}
+                            style={{ cursor: 'pointer' }}
+                            onClick={async () => {
+                              // Toggle selection
+                              const currentIds = templates
+                                .filter((tmpl) =>
+                                  tmpl.runTypeIds?.includes(selectedRunType.id)
+                                )
+                                .map((tmpl) => tmpl.id);
+
+                              let newIds: number[];
+                              if (isAssociated) {
+                                newIds = currentIds.filter((id) => id !== t.id);
+                              } else {
+                                newIds = [...currentIds, t.id];
+                              }
+
+                              try {
+                                await API.updateRunTypeTemplates(
+                                  selectedRunType.id,
+                                  newIds
+                                );
+                                // Reload templates to refresh associations
+                                await loadData();
+                              } catch (e: any) {
+                                setError(e.response?.data?.error || e.message);
+                              }
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              className="form-check-input me-2"
+                              checked={isAssociated}
+                              onChange={() => {}}
+                              style={{ pointerEvents: 'none' }}
+                            />
+                            <div className="flex-grow-1">
+                              <div className="d-flex align-items-center gap-2">
+                                <span
+                                  className={
+                                    isAssociated
+                                      ? isMessage
+                                        ? 'text-info'
+                                        : 'text-success'
+                                      : 'text-light'
+                                  }
+                                >
+                                  {t.displayName}
+                                </span>
+                                <span
+                                  className={`badge ${
+                                    isMessage
+                                      ? 'bg-info text-dark'
+                                      : 'bg-success'
+                                  }`}
+                                  style={{ fontSize: '0.65rem' }}
+                                >
+                                  {isMessage ? 'MSG' : 'RUN'}
+                                </span>
+                              </div>
+                              <small className="text-muted">{t.name}</small>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span className="text-muted fst-italic">
+                    No templates available. Create templates in the Templates
+                    page first.
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Parameters Section - Only show when viewing an existing RunType */}
+          {selectedRunType && !isCreating && (
+            <div className="card border-secondary bg-dark shadow-sm mt-4">
+              <div className="card-header border-secondary py-3">
+                <span className="fw-bold">
+                  <i className="fa-solid fa-sliders me-2"></i>Run Parameters
+                </span>
+                <span className="text-muted small ms-2">
+                  (from associated templates)
+                </span>
+              </div>
+              <div className="card-body">
+                <p className="text-muted small mb-3">
+                  Parameters are defined on templates. When this run type is
+                  used, users will be prompted for these values. You can
+                  optionally set default values for this run type.
+                </p>
+
+                {/* Aggregated parameter list */}
+                {aggregatedParams.length > 0 ? (
+                  <table className="table table-dark table-sm table-hover mb-0">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Display Name</th>
+                        <th>Type</th>
+                        <th>Template Default</th>
+                        <th>Run Type Default</th>
+                        <th>Required</th>
+                        <th>Placeholder</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aggregatedParams.map((param) => (
+                        <tr key={param.id}>
+                          <td>
+                            <code>{param.name}</code>
+                          </td>
+                          <td>{param.displayName}</td>
+                          <td>
+                            <span className="badge bg-secondary">
+                              {param.type}
+                            </span>
+                          </td>
+                          <td>
+                            {param.defaultValue || (
+                              <span className="text-muted">-</span>
+                            )}
+                          </td>
+                          <td>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm bg-dark text-light border-secondary"
+                              placeholder="Optional override"
+                              value={param.runTypeDefault || ''}
+                              onChange={(e) =>
+                                handleSetParameterDefault(
+                                  param.id,
+                                  e.target.value || null
+                                )
+                              }
+                            />
+                          </td>
+                          <td>
+                            {param.required ? (
+                              <span className="text-success">Yes</span>
+                            ) : (
+                              <span className="text-muted">No</span>
+                            )}
+                          </td>
+                          <td>
+                            <code>{`{${param.name.toUpperCase()}}`}</code>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="text-center text-muted py-3">
+                    No parameters required. Add templates with parameters to
+                    this run type.
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

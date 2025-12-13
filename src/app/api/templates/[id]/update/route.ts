@@ -8,12 +8,24 @@ export async function POST(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { displayName, config, runTypeIds } = body;
+    const {
+      displayName,
+      config,
+      type,
+      runTypeIds,
+      messageType,
+      payloadTemplate,
+      targetDaqJobType,
+    } = body;
 
     const template = await TemplateController.updateTemplate(parseInt(id), {
       displayName,
       config,
+      type,
       runTypeIds,
+      messageType,
+      payloadTemplate,
+      targetDaqJobType,
     });
     if (!template) {
       return NextResponse.json(

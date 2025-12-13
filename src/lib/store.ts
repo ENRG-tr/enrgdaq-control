@@ -23,7 +23,11 @@ interface AppState {
   selectClient: (id: string) => void;
   pollClientStatus: () => Promise<void>;
 
-  startRun: (description: string, runTypeId?: number) => Promise<void>;
+  startRun: (
+    description: string,
+    runTypeId?: number,
+    parameterValues?: Record<string, string>
+  ) => Promise<void>;
   stopRun: () => Promise<void>;
   fetchRuns: () => Promise<void>;
   setRunsPage: (page: number) => void;
@@ -104,10 +108,14 @@ export const useStore = create<AppState>((set, get) => ({
     }
   },
 
-  startRun: async (description: string, runTypeId?: number) => {
+  startRun: async (
+    description: string,
+    runTypeId?: number,
+    parameterValues?: Record<string, string>
+  ) => {
     const { selectedClient } = get();
     if (!selectedClient) throw new Error('No client selected');
-    await API.startRun(description, selectedClient, runTypeId);
+    await API.startRun(description, selectedClient, runTypeId, parameterValues);
     set({ runsPage: 1 }); // Reset to first page on new run
     await get().fetchRuns();
   },
