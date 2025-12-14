@@ -144,7 +144,9 @@ const AdvancedControl = () => {
   return (
     <div className="container-fluid h-100 overflow-auto p-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="mb-0 text-light">Advanced Control</h2>
+        <h2 className="mb-0 text-light fw-bold">
+          <i className="fa-solid fa-sliders me-3"></i>Advanced Control
+        </h2>
 
         <div className="d-flex align-items-center">
           <select
@@ -217,7 +219,7 @@ const AdvancedControl = () => {
                   {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {activeJobs.map((job: any) => (
                     <div key={job.unique_id} className="col-md-4 col-lg-3">
-                      <div className="card h-100 border-secondary bg-black">
+                      <div className="card h-100 border-secondary bg-dark">
                         <div className="card-body">
                           <div className="d-flex justify-content-between mb-2"></div>
                           <h6
@@ -283,7 +285,7 @@ const AdvancedControl = () => {
 
         {/* Manual Job Launch */}
         <div className="col-lg-7">
-          <div className="card h-100">
+          <div className="card h-100 border-secondary bg-dark">
             <div
               className={`card-header fw-bold border-secondary ${
                 isEditing ? 'bg-warning text-dark' : 'bg-dark'
@@ -343,7 +345,7 @@ const AdvancedControl = () => {
                 />
               </div>
               <button
-                className="btn btn-primary w-100"
+                className="btn btn-primary btn-lg w-100"
                 onClick={handleExecute}
                 disabled={!clientOnline || isExecuting}
               >
@@ -373,7 +375,7 @@ const AdvancedControl = () => {
 
         {/* Logs */}
         <div className="col-lg-5">
-          <div className="card">
+          <div className="card h-100 border-secondary bg-dark">
             <div className="card-header fw-bold bg-dark border-secondary">
               <i className="fa-solid fa-list-ul me-2"></i>Supervisor Logs
             </div>

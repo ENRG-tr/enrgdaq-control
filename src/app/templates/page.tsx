@@ -396,7 +396,9 @@ export default function TemplatesPage() {
   return (
     <div className="container-fluid h-100 p-4 overflow-hidden d-flex flex-column">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="text-light fw-bold mb-0">Configuration Templates</h2>
+        <h2 className="text-light fw-bold mb-0">
+          <i className="fa-solid fa-file-code me-3"></i>Configuration Templates
+        </h2>
         <div className="dropdown">
           <button
             className="btn btn-primary dropdown-toggle"

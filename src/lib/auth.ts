@@ -12,5 +12,9 @@ export interface HeaderLike {
 }
 
 export function checkAdminAccess(headers: HeaderLike): boolean {
+  // Return true if in dev mode
+  if (process.env.NODE_ENV === 'development') {
+    return true;
+  }
   return headers.get('X-Admin-Access')?.trim() === '1';
 }

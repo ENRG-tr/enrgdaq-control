@@ -210,7 +210,9 @@ export default function RunTypesPage() {
   return (
     <div className="container-fluid h-100 p-4 overflow-hidden d-flex flex-column">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h2 className="text-light fw-bold mb-0">Run Types</h2>
+        <h2 className="text-light fw-bold mb-0">
+          <i className="fa-solid fa-tags me-3"></i>Run Types
+        </h2>
         <button className="btn btn-primary" onClick={handleStartCreate}>
           <i className="fa-solid fa-plus me-2"></i>New Run Type
         </button>

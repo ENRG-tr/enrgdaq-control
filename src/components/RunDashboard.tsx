@@ -149,7 +149,9 @@ const RunDashboard = () => {
     <div className="container-fluid h-100 overflow-auto p-4">
       {/* Top Bar: Client Selector */}
       <div className="d-flex justify-content-between align-items-center mb-5">
-        <h2 className="fw-bold text-light mb-0">Run Dashboard</h2>
+        <h2 className="fw-bold text-light mb-0">
+          <i className="fa-solid fa-chart-line me-3"></i>Run Dashboard
+        </h2>
         <div className="d-flex align-items-center bg-dark border border-secondary rounded px-3 py-2">
           <span className="text-muted me-2">Target Node:</span>
           <select
@@ -176,7 +178,7 @@ const RunDashboard = () => {
         {/* Status Card */}
         <div className="col-lg-6">
           <div
-            className={`card h-100 border-2 ${
+            className={`card h-100 border-2 bg-dark ${
               activeRun ? 'border-success' : 'border-secondary'
             }`}
           >
@@ -232,7 +234,7 @@ const RunDashboard = () => {
 
         {/* Control Card */}
         <div className="col-lg-6">
-          <div className="card h-100">
+          <div className="card h-100 border-secondary bg-dark">
             <div className="card-header fw-bold py-3">
               <i className="fa-solid fa-play me-2"></i>Start New Acquisition
             </div>
@@ -393,7 +395,7 @@ const RunDashboard = () => {
       </div>
 
       {/* History Table */}
-      <div className="card">
+      <div className="card border-secondary bg-dark">
         <div className="card-header fw-bold d-flex justify-content-between align-items-center">
           <span>
             <i className="fa-solid fa-clock-rotate-left me-2"></i>Run History

@@ -203,7 +203,7 @@ export default function MessagesPage() {
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
 
   return (
-    <div className="container-fluid h-100 overflow-auto p-4">
+    <div className="container-fluid h-100 p-4 overflow-hidden d-flex flex-column">
       {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="fw-bold text-light mb-0">
@@ -231,14 +231,14 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      <div className="row g-4">
+      <div className="row flex-grow-1 overflow-hidden g-4">
         {/* Send Message Panel */}
-        <div className="col-lg-6">
-          <div className="card h-100 border-secondary">
+        <div className="col-lg-6 h-100 d-flex flex-column">
+          <div className="card h-100 border-secondary bg-dark">
             <div className="card-header border-secondary fw-bold">
               <i className="fa-solid fa-paper-plane me-2"></i>Send Message
             </div>
-            <div className="card-body">
+            <div className="card-body overflow-auto">
               {error && (
                 <div className="alert alert-danger mb-3">
                   <i className="fa-solid fa-triangle-exclamation me-2"></i>
@@ -507,8 +507,8 @@ export default function MessagesPage() {
         </div>
 
         {/* Message History */}
-        <div className="col-lg-6">
-          <div className="card h-100 border-secondary">
+        <div className="col-lg-6 h-100 d-flex flex-column">
+          <div className="card h-100 border-secondary bg-dark">
             <div className="card-header border-secondary fw-bold d-flex justify-content-between align-items-center">
               <span>
                 <i className="fa-solid fa-clock-rotate-left me-2"></i>Message
@@ -516,7 +516,7 @@ export default function MessagesPage() {
               </span>
               <span className="badge bg-secondary">{messagesTotal} Total</span>
             </div>
-            <div className="card-body p-0">
+            <div className="card-body p-0 overflow-auto">
               <div className="list-group list-group-flush">
                 {messages.map((msg) => (
                   <div
