@@ -298,6 +298,7 @@ export default function TemplatesPage() {
     setError(null);
     try {
       // Validate JSON for message templates
+      /*
       if (formData.type === 'message' && formData.payloadTemplate) {
         try {
           JSON.parse(formData.payloadTemplate);
@@ -308,6 +309,7 @@ export default function TemplatesPage() {
           return;
         }
       }
+      */
 
       if (isCreating) {
         const newTemplate = await API.createTemplate({
