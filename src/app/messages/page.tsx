@@ -66,7 +66,7 @@ export default function MessagesPage() {
     loadMessages();
   }, [messagesPage]);
 
-  // Load parameters when template changes, and auto-select default client
+  // Load parameters when template changes
   useEffect(() => {
     if (selectedTemplateId === '') {
       setParameters([]);
@@ -75,10 +75,17 @@ export default function MessagesPage() {
     }
 
     loadParameters(Number(selectedTemplateId));
+  }, [selectedTemplateId]);
+
+  // Auto-select default client and target DAQ job when template changes
+  useEffect(() => {
+    if (selectedTemplateId === '') return;
+
+    const template = templates.find((t) => t.id === selectedTemplateId);
+    if (!template) return;
 
     // Auto-select default client if template has one
-    const template = templates.find((t) => t.id === selectedTemplateId);
-    if (template?.defaultClientId) {
+    if (template.defaultClientId) {
       // Check if the default client exists in our clients list
       const clientExists = clients.some(
         (c) => c.id === template.defaultClientId
@@ -87,7 +94,17 @@ export default function MessagesPage() {
         selectClient(template.defaultClientId);
       }
     }
-  }, [selectedTemplateId, templates, clients]);
+
+    // Auto-select target DAQ job type if template has one
+    if (template.targetDaqJobType) {
+      setTargetMode('specific');
+      setTargetDaqJobType(template.targetDaqJobType);
+    } else {
+      setTargetMode('broadcast');
+      setTargetDaqJobType('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplateId]);
 
   const loadTemplates = async () => {
     try {
