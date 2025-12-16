@@ -66,7 +66,7 @@ export default function MessagesPage() {
     loadMessages();
   }, [messagesPage]);
 
-  // Load parameters when template changes
+  // Load parameters when template changes, and auto-select default client
   useEffect(() => {
     if (selectedTemplateId === '') {
       setParameters([]);
@@ -75,7 +75,19 @@ export default function MessagesPage() {
     }
 
     loadParameters(Number(selectedTemplateId));
-  }, [selectedTemplateId]);
+
+    // Auto-select default client if template has one
+    const template = templates.find((t) => t.id === selectedTemplateId);
+    if (template?.defaultClientId) {
+      // Check if the default client exists in our clients list
+      const clientExists = clients.some(
+        (c) => c.id === template.defaultClientId
+      );
+      if (clientExists) {
+        selectClient(template.defaultClientId);
+      }
+    }
+  }, [selectedTemplateId, templates, clients]);
 
   const loadTemplates = async () => {
     try {

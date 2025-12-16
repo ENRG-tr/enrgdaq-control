@@ -16,6 +16,7 @@ export async function POST(
       messageType,
       payloadTemplate,
       targetDaqJobType,
+      defaultClientId,
     } = body;
 
     const template = await TemplateController.updateTemplate(parseInt(id), {
@@ -26,6 +27,7 @@ export async function POST(
       messageType,
       payloadTemplate,
       targetDaqJobType,
+      defaultClientId,
     });
     if (!template) {
       return NextResponse.json(

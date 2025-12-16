@@ -24,6 +24,7 @@ export async function POST(req: Request) {
       messageType,
       payloadTemplate,
       targetDaqJobType,
+      defaultClientId,
     } = body;
 
     // For message templates, config is optional (we use payloadTemplate instead)
@@ -61,6 +62,7 @@ export async function POST(req: Request) {
       messageType,
       payloadTemplate,
       targetDaqJobType,
+      defaultClientId,
     });
     return NextResponse.json(template);
   } catch (e: any) {

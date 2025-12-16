@@ -23,6 +23,7 @@ export interface Template {
   messageType?: string | null;
   payloadTemplate?: string | null;
   targetDaqJobType?: string | null; // Target DAQ job type, null = broadcast
+  defaultClientId?: string | null; // Default client to select when using this template
 }
 
 export interface RunType {
@@ -183,6 +184,7 @@ export const API = {
     messageType?: string;
     payloadTemplate?: string;
     targetDaqJobType?: string | null;
+    defaultClientId?: string | null;
   }): Promise<Template> {
     const { data } = await api.post('/templates', createData);
     return data;
@@ -198,6 +200,7 @@ export const API = {
       messageType?: string;
       payloadTemplate?: string;
       targetDaqJobType?: string | null;
+      defaultClientId?: string | null;
     }
   ): Promise<Template> {
     const { data } = await api.post(`/templates/${id}/update`, updateData);

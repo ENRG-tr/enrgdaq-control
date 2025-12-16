@@ -17,6 +17,7 @@ export default function TemplatesPage() {
     Record<string, MessageSchema>
   >({});
   const [daqJobTypes, setDaqJobTypes] = useState<string[]>([]);
+  const [clients, setClients] = useState<{ id: string; tags: string[] }[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(
     null
   );
@@ -34,6 +35,7 @@ export default function TemplatesPage() {
     messageType: '',
     payloadTemplate: '',
     targetDaqJobType: '' as string, // Empty string = broadcast
+    defaultClientId: '' as string, // Empty string = no default
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -97,6 +99,14 @@ export default function TemplatesPage() {
       } catch {
         console.warn('Failed to load DAQ job types');
       }
+
+      // Load clients for default client dropdown
+      try {
+        const clientsData = await API.getClients();
+        setClients(clientsData);
+      } catch {
+        console.warn('Failed to load clients');
+      }
     } catch (e: any) {
       setError(e.message);
     }
@@ -133,6 +143,7 @@ export default function TemplatesPage() {
       messageType: t.messageType || '',
       payloadTemplate: t.payloadTemplate || '',
       targetDaqJobType: t.targetDaqJobType || '',
+      defaultClientId: t.defaultClientId || '',
     });
     setError(null);
     setIsAddingParam(false);
@@ -152,6 +163,7 @@ export default function TemplatesPage() {
       messageType: '',
       payloadTemplate: '',
       targetDaqJobType: '',
+      defaultClientId: '',
     });
     setParameters([]);
     setEditingParamId(null);
@@ -173,6 +185,7 @@ export default function TemplatesPage() {
       messageType: selectedTemplate.messageType || '',
       payloadTemplate: selectedTemplate.payloadTemplate || '',
       targetDaqJobType: selectedTemplate.targetDaqJobType || '',
+      defaultClientId: selectedTemplate.defaultClientId || '',
     });
   };
 
@@ -191,6 +204,7 @@ export default function TemplatesPage() {
         messageType: selectedTemplate.messageType || '',
         payloadTemplate: selectedTemplate.payloadTemplate || '',
         targetDaqJobType: selectedTemplate.targetDaqJobType || '',
+        defaultClientId: selectedTemplate.defaultClientId || '',
       });
     } else {
       setFormData({
@@ -202,6 +216,7 @@ export default function TemplatesPage() {
         messageType: '',
         payloadTemplate: '',
         targetDaqJobType: '',
+        defaultClientId: '',
       });
     }
     setError(null);
@@ -309,6 +324,10 @@ export default function TemplatesPage() {
             formData.type === 'message'
               ? formData.targetDaqJobType || null
               : null,
+          defaultClientId:
+            formData.type === 'message'
+              ? formData.defaultClientId || null
+              : null,
         });
         await loadData();
         setSelectedTemplate(newTemplate);
@@ -323,6 +342,7 @@ export default function TemplatesPage() {
           messageType: formData.messageType,
           payloadTemplate: formData.payloadTemplate,
           targetDaqJobType: formData.targetDaqJobType || null,
+          defaultClientId: formData.defaultClientId || null,
         });
         await loadData();
         setSelectedTemplate(updated);
@@ -1005,6 +1025,37 @@ export default function TemplatesPage() {
                         {formData.targetDaqJobType
                           ? `Message will be sent only to jobs of type "${formData.targetDaqJobType}".`
                           : 'Message will be broadcast to all running DAQ jobs.'}
+                      </div>
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="form-label text-muted">
+                        Default Client
+                      </label>
+                      <select
+                        className="form-select bg-dark text-light border-secondary"
+                        value={formData.defaultClientId}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            defaultClientId: e.target.value,
+                          })
+                        }
+                        disabled={!isCreating && !isEditing}
+                      >
+                        <option value="">
+                          -- No Default (User Selects) --
+                        </option>
+                        {clients.map((client) => (
+                          <option key={client.id} value={client.id}>
+                            {client.id}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="form-text">
+                        {formData.defaultClientId
+                          ? `Client "${formData.defaultClientId}" will be pre-selected when using this template.`
+                          : 'User must manually select the target client when sending.'}
                       </div>
                     </div>
 

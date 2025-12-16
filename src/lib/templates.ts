@@ -231,6 +231,7 @@ export class TemplateController {
     messageType?: string;
     payloadTemplate?: string;
     targetDaqJobType?: string | null;
+    defaultClientId?: string | null;
   }): Promise<TemplateWithRunTypes> {
     return await db.transaction(async (tx) => {
       const [template] = await tx
@@ -244,6 +245,7 @@ export class TemplateController {
           messageType: data.messageType || null,
           payloadTemplate: data.payloadTemplate || null,
           targetDaqJobType: data.targetDaqJobType || null,
+          defaultClientId: data.defaultClientId || null,
         })
         .returning();
 
@@ -271,6 +273,7 @@ export class TemplateController {
       messageType?: string;
       payloadTemplate?: string;
       targetDaqJobType?: string | null;
+      defaultClientId?: string | null;
     }
   ): Promise<TemplateWithRunTypes | null> {
     // Check if editable
@@ -297,6 +300,8 @@ export class TemplateController {
         updateData.payloadTemplate = data.payloadTemplate;
       if (data.targetDaqJobType !== undefined)
         updateData.targetDaqJobType = data.targetDaqJobType;
+      if (data.defaultClientId !== undefined)
+        updateData.defaultClientId = data.defaultClientId;
 
       const [updated] = await tx
         .update(templates)
