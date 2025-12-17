@@ -5,6 +5,7 @@ import { API, Template, TemplateParameter, Message } from '@/lib/api-client';
 import { useStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 import MessagePayloadForm from '@/components/MessagePayloadForm';
+import type { DAQJobInfo } from '@/lib/types';
 
 interface MessageSchema {
   type_key: string;
@@ -110,7 +111,7 @@ export default function MessagesPage() {
     try {
       const data = await API.getMessageTemplates();
       setTemplates(data);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to load message templates:', e);
     }
   };
@@ -123,7 +124,7 @@ export default function MessagesPage() {
         MessageSchema
       >;
       setSchemas(data);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to load message schemas:', e);
     } finally {
       setLoadingSchemas(false);
@@ -135,7 +136,7 @@ export default function MessagesPage() {
       const data = await API.getMessages(messagesPage, messagesLimit);
       setMessages(data.messages);
       setMessagesTotal(data.total);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to load messages:', e);
     }
   };
@@ -151,7 +152,7 @@ export default function MessagesPage() {
         initial[param.name] = param.defaultValue || '';
       }
       setParameterValues(initial);
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to load parameters:', e);
       setParameters([]);
     } finally {
@@ -221,9 +222,10 @@ export default function MessagesPage() {
       if (mode === 'raw') {
         setRawPayload('');
       }
-    } catch (e: any) {
-      setError(e.message || 'Failed to send message');
-      toast.error(e.message || 'Failed to send message');
+    } catch (e: unknown) {
+      const error = e as { message?: string };
+      setError(error.message || 'Failed to send message');
+      toast.error(error.message || 'Failed to send message');
     } finally {
       setIsSending(false);
     }
@@ -498,7 +500,7 @@ export default function MessagesPage() {
                     onChange={(e) => setTargetDaqJobType(e.target.value)}
                   >
                     <option value="">-- Select Active Job --</option>
-                    {activeJobs.map((job: any) => (
+                    {activeJobs.map((job: DAQJobInfo) => (
                       <option key={job.unique_id} value={job.daq_job_type}>
                         {job.daq_job_type} ({job.unique_id})
                       </option>

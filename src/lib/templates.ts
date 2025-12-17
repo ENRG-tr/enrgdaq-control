@@ -10,6 +10,7 @@ import {
   type TemplateParameter,
 } from './schema';
 import { eq, and } from 'drizzle-orm';
+import type { TemplateUpdateData } from './types';
 
 export type TemplateWithRunTypes = Template & { runTypeIds: number[] };
 
@@ -287,7 +288,7 @@ export class TemplateController {
     }
 
     return await db.transaction(async (tx) => {
-      const updateData: any = {
+      const updateData: TemplateUpdateData = {
         updatedAt: new Date(),
       };
       if (data.displayName !== undefined)

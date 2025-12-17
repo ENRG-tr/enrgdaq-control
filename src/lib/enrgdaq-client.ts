@@ -8,10 +8,15 @@ export class ENRGDAQClient {
   static async getClients(): Promise<{ id: string; tags: string[] }[]> {
     try {
       const { data } = await api.get('/clients');
-      return Object.entries(data).map(([key, value]: [string, any]) => ({
-        id: key,
-        tags: value?.info?.supervisor_tags || [],
-      }));
+      return Object.entries(data).map(([key, value]: [string, unknown]) => {
+        const clientData = value as
+          | { info?: { supervisor_tags?: string[] } }
+          | undefined;
+        return {
+          id: key,
+          tags: clientData?.info?.supervisor_tags || [],
+        };
+      });
     } catch (e) {
       console.error('Error fetching clients:', e);
       return [];
@@ -39,8 +44,13 @@ export class ENRGDAQClient {
   static async runJob(clientId: string, config: string) {
     try {
       await api.post(`/clients/${clientId}/run_custom_daqjob`, { config });
-    } catch (e: any) {
-      throw new Error(`Failed to run job: ${e.response?.data || e.message}`);
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: string }; message?: string };
+      throw new Error(
+        `Failed to run job: ${
+          error.response?.data || error.message || 'Unknown error'
+        }`
+      );
     }
   }
 
@@ -50,8 +60,13 @@ export class ENRGDAQClient {
         daq_job_unique_id: uniqueId,
         remove,
       });
-    } catch (e: any) {
-      throw new Error(`Failed to stop job: ${e.response?.data || e.message}`);
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: string }; message?: string };
+      throw new Error(
+        `Failed to stop job: ${
+          error.response?.data || error.message || 'Unknown error'
+        }`
+      );
     }
   }
 
@@ -88,9 +103,12 @@ export class ENRGDAQClient {
         payload: payload,
         target_daq_job_unique_id: targetDaqJobUniqueId || null,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e as { response?: { data?: string }; message?: string };
       throw new Error(
-        `Failed to send message: ${e.response?.data || e.message}`
+        `Failed to send message: ${
+          error.response?.data || error.message || 'Unknown error'
+        }`
       );
     }
   }

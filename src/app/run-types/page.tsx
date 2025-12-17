@@ -46,8 +46,9 @@ export default function RunTypesPage() {
       setRunTypes(rtData);
       // Include both run and message templates
       setTemplates(tData);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      const error = e as { message?: string };
+      setError(error.message || 'Failed to load data');
     }
   };
 
@@ -163,8 +164,14 @@ export default function RunTypesPage() {
         setSelectedRunType(updated);
         setIsEditing(false);
       }
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message);
+    } catch (e: unknown) {
+      const error = e as {
+        response?: { data?: { error?: string } };
+        message?: string;
+      };
+      setError(
+        error.response?.data?.error || error.message || 'Failed to save'
+      );
     }
   };
 
@@ -182,8 +189,14 @@ export default function RunTypesPage() {
       await loadData();
       setSelectedRunType(null);
       setIsEditing(false);
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message);
+    } catch (e: unknown) {
+      const error = e as {
+        response?: { data?: { error?: string } };
+        message?: string;
+      };
+      setError(
+        error.response?.data?.error || error.message || 'Failed to delete'
+      );
     }
   };
 
@@ -202,8 +215,14 @@ export default function RunTypesPage() {
         defaultValue
       );
       await loadAggregatedParameters(selectedRunType.id);
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message);
+    } catch (e: unknown) {
+      const error = e as {
+        response?: { data?: { error?: string } };
+        message?: string;
+      };
+      setError(
+        error.response?.data?.error || error.message || 'Failed to set default'
+      );
     }
   };
 

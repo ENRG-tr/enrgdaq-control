@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { API, Template, RunType, TemplateParameter } from '@/lib/api-client';
+import { TemplateList, RunTypeAssociation } from './components';
 
 interface MessageSchema {
   type_key: string;
@@ -107,8 +108,9 @@ export default function TemplatesPage() {
       } catch {
         console.warn('Failed to load clients');
       }
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      const error = e as { message?: string };
+      setError(error.message || 'Failed to load data');
     }
   };
 
@@ -119,13 +121,6 @@ export default function TemplatesPage() {
       .replace(/\s+/g, '_')
       .replace(/[^A-Z0-9_]/g, ''); // Ensure only safe chars
   };
-
-  const activeRunTypeIds = runTypes.map((rt) => rt.id);
-
-  const filteredTemplates = templates.filter((t) => {
-    if (typeFilter === 'all') return true;
-    return t.type === typeFilter;
-  });
 
   const handleSelectTemplate = (t: Template) => {
     if (isCreating) {
@@ -248,8 +243,16 @@ export default function TemplatesPage() {
         required: true,
       });
       setIsAddingParam(false);
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message);
+    } catch (e: unknown) {
+      const error = e as {
+        response?: { data?: { error?: string } };
+        message?: string;
+      };
+      setError(
+        error.response?.data?.error ||
+          error.message ||
+          'Failed to add parameter'
+      );
     }
   };
 
@@ -260,8 +263,16 @@ export default function TemplatesPage() {
       if (selectedTemplate) {
         await loadParameters(selectedTemplate.id);
       }
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message);
+    } catch (e: unknown) {
+      const error = e as {
+        response?: { data?: { error?: string } };
+        message?: string;
+      };
+      setError(
+        error.response?.data?.error ||
+          error.message ||
+          'Failed to delete parameter'
+      );
     }
   };
 
@@ -289,8 +300,16 @@ export default function TemplatesPage() {
         await loadParameters(selectedTemplate.id);
       }
       setEditingParamId(null);
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message);
+    } catch (e: unknown) {
+      const error = e as {
+        response?: { data?: { error?: string } };
+        message?: string;
+      };
+      setError(
+        error.response?.data?.error ||
+          error.message ||
+          'Failed to update parameter'
+      );
     }
   };
 
@@ -350,8 +369,16 @@ export default function TemplatesPage() {
         setSelectedTemplate(updated);
         setIsEditing(false);
       }
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message);
+    } catch (e: unknown) {
+      const error = e as {
+        response?: { data?: { error?: string } };
+        message?: string;
+      };
+      setError(
+        error.response?.data?.error ||
+          error.message ||
+          'Failed to save template'
+      );
     }
   };
 
@@ -369,8 +396,16 @@ export default function TemplatesPage() {
       await loadData();
       setSelectedTemplate(null);
       setIsEditing(false);
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message);
+    } catch (e: unknown) {
+      const error = e as {
+        response?: { data?: { error?: string } };
+        message?: string;
+      };
+      setError(
+        error.response?.data?.error ||
+          error.message ||
+          'Failed to delete template'
+      );
     }
   };
 
@@ -401,16 +436,20 @@ export default function TemplatesPage() {
     const schema = messageSchemas[messageType];
     if (!schema || !schema.$defs) return '{}';
 
-    const mainDef = schema.$defs[messageType] as any;
+    // Type for JSON Schema definition
+    interface SchemaDefinition {
+      properties?: Record<string, { type?: string }>;
+    }
+
+    const mainDef = schema.$defs[messageType] as SchemaDefinition | undefined;
     if (!mainDef?.properties) return '{}';
 
-    const template: Record<string, any> = {};
+    const template: Record<string, string | boolean | number> = {};
     for (const [key, prop] of Object.entries(mainDef.properties)) {
-      const p = prop as any;
       // Skip complex/nested objects for simplicity
-      if (p.type === 'string') template[key] = `{${key.toUpperCase()}}`;
-      else if (p.type === 'boolean') template[key] = false;
-      else if (p.type === 'integer') template[key] = 0;
+      if (prop.type === 'string') template[key] = `{${key.toUpperCase()}}`;
+      else if (prop.type === 'boolean') template[key] = false;
+      else if (prop.type === 'integer') template[key] = 0;
     }
     return JSON.stringify(template, null, 2);
   };
@@ -464,52 +503,13 @@ export default function TemplatesPage() {
       <div className="row flex-grow-1 overflow-hidden g-4">
         {/* List Column */}
         <div className="col-md-4 h-100 d-flex flex-column">
-          <div className="card h-100 border-secondary bg-dark">
-            <div className="card-header border-secondary fw-bold d-flex justify-content-between align-items-center">
-              <span>Available Templates</span>
-              <select
-                className="form-select form-select-sm bg-dark text-light border-secondary"
-                style={{ width: 'auto' }}
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value as any)}
-              >
-                <option value="all">All Types</option>
-                <option value="run">Run</option>
-                <option value="message">Message</option>
-              </select>
-            </div>
-            <div className="list-group list-group-flush overflow-auto h-100">
-              {filteredTemplates.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => handleSelectTemplate(t)}
-                  className={`list-group-item list-group-item-action bg-dark text-light border-secondary ${
-                    selectedTemplate?.id === t.id ? 'active' : ''
-                  }`}
-                >
-                  <div className="d-flex w-100 justify-content-between align-items-center">
-                    <div>
-                      <h6 className="mb-1 fw-bold">{t.displayName}</h6>
-                      <small className="text-muted">{t.name}</small>
-                    </div>
-                    <div className="d-flex align-items-center gap-2">
-                      {getTypeBadge(t.type)}
-                      {!t.editable && (
-                        <span className="badge bg-secondary">
-                          <i className="fa-solid fa-lock"></i>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ))}
-              {filteredTemplates.length === 0 && (
-                <div className="p-3 text-center text-muted">
-                  No templates found.
-                </div>
-              )}
-            </div>
-          </div>
+          <TemplateList
+            templates={templates}
+            selectedTemplateId={selectedTemplate?.id || null}
+            typeFilter={typeFilter}
+            setTypeFilter={setTypeFilter}
+            onSelectTemplate={handleSelectTemplate}
+          />
         </div>
 
         {/* Detail/Edit Column */}
@@ -640,50 +640,13 @@ export default function TemplatesPage() {
                 )}
 
                 {/* Run Type Association (for both run and message templates) */}
-                <div className="mb-3">
-                  <label className="form-label text-muted">
-                    Associated Run Types
-                  </label>
-                  <div className="form-text mb-2">
-                    {formData.type === 'run'
-                      ? 'This template will be available when starting runs of the selected types.'
-                      : 'Message templates linked to run types can be sent during those runs.'}
-                  </div>
-                  <div className="card bg-dark border-secondary p-2">
-                    {runTypes.length > 0 ? (
-                      runTypes.map((rt) => (
-                        <div
-                          key={rt.id}
-                          className="form-check form-switch mb-2"
-                        >
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            id={`rt-${rt.id}`}
-                            checked={formData.runTypeIds.includes(rt.id)}
-                            onChange={() => toggleRunType(rt.id)}
-                            disabled={!isCreating && !isEditing}
-                          />
-                          <label
-                            className="form-check-label"
-                            htmlFor={`rt-${rt.id}`}
-                          >
-                            <strong>{rt.name}</strong>
-                            {rt.description && (
-                              <span className="text-muted ms-2 small">
-                                ({rt.description})
-                              </span>
-                            )}
-                          </label>
-                        </div>
-                      ))
-                    ) : (
-                      <small className="text-muted">
-                        No run types defined in system.
-                      </small>
-                    )}
-                  </div>
-                </div>
+                <RunTypeAssociation
+                  runTypes={runTypes}
+                  selectedRunTypeIds={formData.runTypeIds}
+                  templateType={formData.type}
+                  isDisabled={!isCreating && !isEditing}
+                  onToggleRunType={toggleRunType}
+                />
 
                 {/* Parameters Section (only for existing templates) */}
                 {!isCreating && selectedTemplate && (

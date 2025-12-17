@@ -111,9 +111,10 @@ const RunDashboard = () => {
       setDescription('');
       setParameterValues({});
       toast.success('Acquisition started successfully');
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e as { message?: string };
       console.error('Failed to start run:', e);
-      toast.error('Failed to start run: ' + (e.message || e));
+      toast.error('Failed to start run: ' + (error.message || 'Unknown error'));
     } finally {
       setIsStarting(false);
     }
@@ -125,9 +126,10 @@ const RunDashboard = () => {
     try {
       await stopRun();
       toast.success(`Run #${activeRun.id} stopped successfully`);
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e as { message?: string };
       console.error('Failed to stop run:', e);
-      toast.error('Failed to stop run: ' + (e.message || e));
+      toast.error('Failed to stop run: ' + (error.message || 'Unknown error'));
     } finally {
       setIsStopping(false);
     }

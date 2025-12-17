@@ -1,12 +1,12 @@
 import { create } from 'zustand';
-import { API, type LogEntry, type RunType } from './api-client';
-import type { Run } from './types';
+import { API, type RunType } from './api-client';
+import type { Run, ClientStatus, LogEntry, Client } from './types';
 
 interface AppState {
   // Client State
-  clients: { id: string; tags: string[] }[];
+  clients: Client[];
   selectedClient: string | null;
-  clientStatus: any;
+  clientStatus: ClientStatus | null;
   clientOnline: boolean;
   logs: LogEntry[];
 

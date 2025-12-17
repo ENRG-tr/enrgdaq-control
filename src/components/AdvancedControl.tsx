@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { API, type LogEntry, type Template } from '@/lib/api-client';
+import { API, type Template } from '@/lib/api-client';
+import type { DAQJobInfo, LogEntry } from '@/lib/types';
 import TomlForm from './TomlForm';
 import toast from 'react-hot-toast';
 
@@ -78,9 +79,10 @@ const AdvancedControl = () => {
     try {
       await API.stopJob(selectedClient, jobId);
       toast.success('Job stopped successfully');
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e as { message?: string };
       console.error('Failed to stop job:', e);
-      toast.error(`Failed to stop job: ${e.message || e}`);
+      toast.error(`Failed to stop job: ${error.message || 'Unknown error'}`);
     } finally {
       setStoppingJobId(null);
     }
@@ -103,9 +105,10 @@ const AdvancedControl = () => {
       } else {
         toast.success('Process started successfully.');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e as { message?: string };
       console.error('Execution failed:', e);
-      toast.error(`Execution failed: ${e.message || e}`);
+      toast.error(`Execution failed: ${error.message || 'Unknown error'}`);
     } finally {
       setIsExecuting(false);
     }
@@ -117,9 +120,10 @@ const AdvancedControl = () => {
     try {
       await API.restartDaq(selectedClient);
       toast.success('DAQ restarted successfully');
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e as { message?: string };
       console.error('Failed to restart DAQ:', e);
-      toast.error(`Failed to restart DAQ: ${e.message || e}`);
+      toast.error(`Failed to restart DAQ: ${error.message || 'Unknown error'}`);
     } finally {
       setIsRestarting(false);
     }
@@ -131,9 +135,12 @@ const AdvancedControl = () => {
     try {
       await API.stopAllJobs(selectedClient);
       toast.success('All jobs stopped successfully');
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const error = e as { message?: string };
       console.error('Failed to stop all jobs:', e);
-      toast.error(`Failed to stop all jobs: ${e.message || e}`);
+      toast.error(
+        `Failed to stop all jobs: ${error.message || 'Unknown error'}`
+      );
     } finally {
       setIsStoppingAll(false);
     }
@@ -216,8 +223,7 @@ const AdvancedControl = () => {
             <div className="card-body">
               {activeJobs.length > 0 ? (
                 <div className="row g-3">
-                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                  {activeJobs.map((job: any) => (
+                  {activeJobs.map((job: DAQJobInfo) => (
                     <div key={job.unique_id} className="col-md-4 col-lg-3">
                       <div className="card h-100 border-secondary bg-dark">
                         <div className="card-body">
@@ -235,8 +241,11 @@ const AdvancedControl = () => {
                             <button
                               className="btn btn-sm btn-outline-info"
                               onClick={() => {
-                                if (job.config) {
-                                  handleEditConfig(job.config, job.unique_id);
+                                const jobConfig = (
+                                  job as DAQJobInfo & { config?: string }
+                                ).config;
+                                if (jobConfig) {
+                                  handleEditConfig(jobConfig, job.unique_id);
                                 } else {
                                   toast.error(
                                     'No configuration available for this job.'
@@ -384,8 +393,7 @@ const AdvancedControl = () => {
                 className="console-logs m-0 h-100 border-0 rounded-0"
                 style={{ minHeight: '500px', maxHeight: '500px' }}
               >
-                {[]
-                  .concat(logs as any)
+                {[...logs]
                   .reverse()
                   .filter((l: LogEntry) => l !== null)
                   .map((l: LogEntry, i) => (
