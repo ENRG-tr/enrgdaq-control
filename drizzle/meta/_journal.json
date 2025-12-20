@@ -15,6 +15,13 @@
       "when": 1765716728069,
       "tag": "0001_lying_absorbing_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1766212733644,
+      "tag": "0002_add_scheduled_end_time",
+      "breakpoints": true
     }
   ]
 }

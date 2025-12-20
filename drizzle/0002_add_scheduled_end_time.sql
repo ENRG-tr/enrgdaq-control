@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "scheduled_end_time" timestamp;

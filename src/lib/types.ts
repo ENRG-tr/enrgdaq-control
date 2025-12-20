@@ -3,6 +3,7 @@ export interface Run {
   description: string;
   startTime: Date;
   endTime: Date | null;
+  scheduledEndTime: Date | null;
   status: string;
   daqJobIds: string[] | null;
   config: string | null;

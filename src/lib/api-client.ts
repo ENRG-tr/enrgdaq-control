@@ -154,13 +154,15 @@ export const API = {
     description: string,
     clientId: string,
     runTypeId?: number,
-    parameterValues?: Record<string, string>
+    parameterValues?: Record<string, string>,
+    scheduledEndTime?: Date | null
   ): Promise<Run> {
     const { data } = await api.post('/runs', {
       description,
       clientId,
       runTypeId,
       parameterValues,
+      scheduledEndTime: scheduledEndTime?.toISOString() || null,
     });
     return data;
   },

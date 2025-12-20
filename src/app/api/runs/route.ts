@@ -19,7 +19,13 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { description, clientId, runTypeId, parameterValues } = body;
+    const {
+      description,
+      clientId,
+      runTypeId,
+      parameterValues,
+      scheduledEndTime,
+    } = body;
 
     if (!description || !clientId) {
       return NextResponse.json(
@@ -28,11 +34,17 @@ export async function POST(req: Request) {
       );
     }
 
+    // Parse scheduledEndTime if provided
+    const parsedScheduledEndTime = scheduledEndTime
+      ? new Date(scheduledEndTime)
+      : undefined;
+
     const run = await RunController.startRun(
       description,
       clientId,
       runTypeId,
-      parameterValues
+      parameterValues,
+      parsedScheduledEndTime
     );
     return NextResponse.json(run);
   } catch (e: any) {

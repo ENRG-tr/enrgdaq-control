@@ -14,6 +14,7 @@ export const runs = pgTable('runs', {
   description: text('description').notNull(),
   startTime: timestamp('start_time').notNull().defaultNow(),
   endTime: timestamp('end_time'),
+  scheduledEndTime: timestamp('scheduled_end_time'), // Optional scheduled end time for timed runs
   status: text('status').notNull().default('RUNNING'), // RUNNING, COMPLETED, STOPPED
   daqJobIds: json('daq_job_ids').$type<string[]>(),
   config: text('config'),

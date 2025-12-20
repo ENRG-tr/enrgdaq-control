@@ -44,6 +44,27 @@ export class RunController {
     const run = result[0] || null;
 
     if (run) {
+      // Check if scheduled end time has passed
+      if (run.scheduledEndTime && new Date() >= run.scheduledEndTime) {
+        console.log(
+          `Run ${run.id} reached scheduled end time. Automatically stopping.`
+        );
+        if (run.clientId) {
+          try {
+            await this.stopRun(run.id, run.clientId);
+          } catch (e) {
+            console.error(`Failed to auto-stop run ${run.id}:`, e);
+          }
+        } else {
+          // No clientId, just mark as completed
+          await db
+            .update(runs)
+            .set({ status: 'COMPLETED', endTime: new Date() })
+            .where(eq(runs.id, run.id));
+        }
+        return null; // No longer active
+      }
+
       // Verify liveness
       try {
         // If we don't know the client ID, we can't check.
@@ -90,7 +111,8 @@ export class RunController {
     description: string,
     clientId: string,
     runTypeId: number,
-    parameterValues?: Record<string, string> // { parameterName: value }
+    parameterValues?: Record<string, string>, // { parameterName: value }
+    scheduledEndTime?: Date // Optional scheduled end time for timed runs
   ): Promise<Run> {
     // 1. Check if run exists
     const existing = await this.getActiveRun();
@@ -106,6 +128,7 @@ export class RunController {
         status: 'RUNNING',
         clientId,
         runTypeId: runTypeId || null,
+        scheduledEndTime: scheduledEndTime || null,
       })
       .returning();
 

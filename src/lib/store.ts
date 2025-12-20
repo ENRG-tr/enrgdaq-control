@@ -26,7 +26,8 @@ interface AppState {
   startRun: (
     description: string,
     runTypeId?: number,
-    parameterValues?: Record<string, string>
+    parameterValues?: Record<string, string>,
+    scheduledEndTime?: Date | null
   ) => Promise<void>;
   stopRun: () => Promise<void>;
   fetchRuns: () => Promise<void>;
@@ -111,11 +112,18 @@ export const useStore = create<AppState>((set, get) => ({
   startRun: async (
     description: string,
     runTypeId?: number,
-    parameterValues?: Record<string, string>
+    parameterValues?: Record<string, string>,
+    scheduledEndTime?: Date | null
   ) => {
     const { selectedClient } = get();
     if (!selectedClient) throw new Error('No client selected');
-    await API.startRun(description, selectedClient, runTypeId, parameterValues);
+    await API.startRun(
+      description,
+      selectedClient,
+      runTypeId,
+      parameterValues,
+      scheduledEndTime
+    );
     set({ runsPage: 1 }); // Reset to first page on new run
     await get().fetchRuns();
   },

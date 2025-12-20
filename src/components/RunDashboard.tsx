@@ -1,8 +1,10 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import { API, type AggregatedParameter } from '@/lib/api-client';
 import toast from 'react-hot-toast';
+
+type TimerMode = 'none' | 'duration' | 'datetime';
 
 const RunDashboard = () => {
   const {
@@ -33,6 +35,39 @@ const RunDashboard = () => {
     Record<string, string>
   >({});
   const [loadingParams, setLoadingParams] = useState(false);
+
+  // Timer state
+  const [timerMode, setTimerMode] = useState<TimerMode>('none');
+  const [durationHours, setDurationHours] = useState<number>(0);
+  const [durationMinutes, setDurationMinutes] = useState<number>(0);
+  const [scheduledDateTime, setScheduledDateTime] = useState<string>('');
+
+  // Live countdown state
+  const [countdown, setCountdown] = useState<string | null>(null);
+
+  // Calculate scheduled end time based on timer mode
+  const calculateScheduledEndTime = useCallback((): Date | null => {
+    if (timerMode === 'none') return null;
+
+    if (timerMode === 'duration') {
+      const totalMinutes = durationHours * 60 + durationMinutes;
+      if (totalMinutes <= 0) return null;
+      const endTime = new Date();
+      endTime.setMinutes(endTime.getMinutes() + totalMinutes);
+      return endTime;
+    }
+
+    if (timerMode === 'datetime' && scheduledDateTime) {
+      const endTime = new Date(scheduledDateTime);
+      if (endTime <= new Date()) {
+        toast.error('Scheduled end time must be in the future');
+        return null;
+      }
+      return endTime;
+    }
+
+    return null;
+  }, [timerMode, durationHours, durationMinutes, scheduledDateTime]);
 
   useEffect(() => {
     fetchRunTypes();
@@ -101,15 +136,34 @@ const RunDashboard = () => {
       }
     }
 
+    // Calculate scheduled end time
+    const scheduledEndTime = calculateScheduledEndTime();
+
+    // Validate timer mode has valid values
+    if (timerMode === 'duration' && durationHours * 60 + durationMinutes <= 0) {
+      toast.error('Please set a valid duration (hours or minutes)');
+      return;
+    }
+    if (timerMode === 'datetime' && !scheduledDateTime) {
+      toast.error('Please select a valid date and time');
+      return;
+    }
+
     setIsStarting(true);
     try {
       await startRun(
         description,
         selectedRunTypeId ? Number(selectedRunTypeId) : undefined,
-        parameterValues
+        parameterValues,
+        scheduledEndTime
       );
       setDescription('');
       setParameterValues({});
+      // Reset timer state
+      setTimerMode('none');
+      setDurationHours(0);
+      setDurationMinutes(0);
+      setScheduledDateTime('');
       toast.success('Acquisition started successfully');
     } catch (e: unknown) {
       const error = e as { message?: string };
@@ -119,6 +173,41 @@ const RunDashboard = () => {
       setIsStarting(false);
     }
   };
+
+  // Countdown timer effect for active runs with scheduled end time
+  useEffect(() => {
+    if (!activeRun?.scheduledEndTime) {
+      setCountdown(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = new Date();
+      const endTime = new Date(activeRun.scheduledEndTime!);
+      const diff = endTime.getTime() - now.getTime();
+
+      if (diff <= 0) {
+        setCountdown('Time up! Stopping...');
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (hours > 0) {
+        setCountdown(`${hours}h ${minutes}m ${seconds}s remaining`);
+      } else if (minutes > 0) {
+        setCountdown(`${minutes}m ${seconds}s remaining`);
+      } else {
+        setCountdown(`${seconds}s remaining`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [activeRun?.scheduledEndTime]);
 
   const handleStop = async () => {
     if (!activeRun) return;
@@ -196,6 +285,21 @@ const RunDashboard = () => {
                     {getRunTypeName(activeRun.runTypeId)}
                   </div>
                   <p className="text-muted lead">"{activeRun.description}"</p>
+                  {/* Timer Countdown */}
+                  {countdown && (
+                    <div className="mb-3">
+                      <span className="badge bg-warning text-dark px-3 py-2">
+                        <i className="fa-solid fa-clock me-2"></i>
+                        {countdown}
+                      </span>
+                    </div>
+                  )}
+                  {activeRun.scheduledEndTime && (
+                    <p className="text-muted small mb-0">
+                      Scheduled to stop at:{' '}
+                      {new Date(activeRun.scheduledEndTime).toLocaleString()}
+                    </p>
+                  )}
                   <div className="mt-4 w-100 px-5">
                     <button
                       onClick={handleStop}
@@ -344,6 +448,136 @@ const RunDashboard = () => {
                   ))}
                 </div>
               )}
+
+              {/* Timer Configuration */}
+              <div className="mb-4 p-3 border border-secondary rounded">
+                <label className="form-label text-warning fw-bold mb-3">
+                  <i className="fa-solid fa-stopwatch me-2"></i>Run Timer
+                  (Optional)
+                </label>
+
+                {/* Timer Mode Selection */}
+                <div className="btn-group w-100 mb-3" role="group">
+                  <button
+                    type="button"
+                    className={`btn ${
+                      timerMode === 'none'
+                        ? 'btn-warning'
+                        : 'btn-outline-secondary'
+                    }`}
+                    onClick={() => setTimerMode('none')}
+                    disabled={!!activeRun || !clientOnline}
+                  >
+                    <i className="fa-solid fa-infinity me-1"></i> No Limit
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      timerMode === 'duration'
+                        ? 'btn-warning'
+                        : 'btn-outline-secondary'
+                    }`}
+                    onClick={() => setTimerMode('duration')}
+                    disabled={!!activeRun || !clientOnline}
+                  >
+                    <i className="fa-solid fa-hourglass-half me-1"></i> Duration
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn ${
+                      timerMode === 'datetime'
+                        ? 'btn-warning'
+                        : 'btn-outline-secondary'
+                    }`}
+                    onClick={() => setTimerMode('datetime')}
+                    disabled={!!activeRun || !clientOnline}
+                  >
+                    <i className="fa-solid fa-calendar-check me-1"></i> Stop At
+                  </button>
+                </div>
+
+                {/* Duration Inputs */}
+                {timerMode === 'duration' && (
+                  <div className="row g-2">
+                    <div className="col-6">
+                      <label className="form-label text-muted small">
+                        Hours
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="999"
+                        className="form-control bg-dark text-light border-secondary"
+                        value={durationHours}
+                        onChange={(e) =>
+                          setDurationHours(
+                            Math.max(0, parseInt(e.target.value) || 0)
+                          )
+                        }
+                        disabled={!!activeRun || !clientOnline}
+                      />
+                    </div>
+                    <div className="col-6">
+                      <label className="form-label text-muted small">
+                        Minutes
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="59"
+                        className="form-control bg-dark text-light border-secondary"
+                        value={durationMinutes}
+                        onChange={(e) =>
+                          setDurationMinutes(
+                            Math.min(
+                              59,
+                              Math.max(0, parseInt(e.target.value) || 0)
+                            )
+                          )
+                        }
+                        disabled={!!activeRun || !clientOnline}
+                      />
+                    </div>
+                    <div className="col-12">
+                      <div className="form-text">
+                        Run will automatically stop after{' '}
+                        {durationHours > 0 ? `${durationHours}h ` : ''}
+                        {durationMinutes > 0
+                          ? `${durationMinutes}m`
+                          : durationHours === 0
+                          ? 'set a duration'
+                          : ''}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Datetime Input */}
+                {timerMode === 'datetime' && (
+                  <div>
+                    <label className="form-label text-muted small">
+                      Stop at Date/Time
+                    </label>
+                    <input
+                      type="datetime-local"
+                      className="form-control bg-dark text-light border-secondary"
+                      value={scheduledDateTime}
+                      onChange={(e) => setScheduledDateTime(e.target.value)}
+                      disabled={!!activeRun || !clientOnline}
+                    />
+                    <div className="form-text">
+                      Run will automatically stop at the specified date and
+                      time.
+                    </div>
+                  </div>
+                )}
+
+                {timerMode === 'none' && (
+                  <div className="form-text">
+                    Run will continue until manually stopped.
+                  </div>
+                )}
+              </div>
 
               <div className="alert alert-info border-info d-flex align-items-center">
                 <i className="fa-solid fa-info-circle fa-2x me-3"></i>
