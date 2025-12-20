@@ -120,7 +120,144 @@ export class RunController {
       throw new Error('A run is already in progress');
     }
 
-    // 2. Create Run Entry (to get ID)
+    // 2. Generate Configs from Templates FIRST (before creating run entry)
+    // We use a temporary ID (0) for config generation, then update after run is created
+    const runConfigs = await this.generateRunConfigs(
+      0, // Temporary ID - we'll regenerate with real ID after
+      runTypeId,
+      parameterValues
+    );
+
+    if (runConfigs.length === 0) {
+      throw new Error(
+        `No templates with type="run" found for RunType: ${runTypeId}`
+      );
+    }
+
+    const jobNames: string[] = [];
+    const fullConfigDrafts: string[] = [];
+
+    // 3. Start Jobs on CNC (before creating database entry)
+    // Generate unique job names using a timestamp-based approach since we don't have run ID yet
+    const runToken = crypto.randomUUID().split('-')[0];
+
+    try {
+      for (const rc of runConfigs) {
+        const uniqueJobName = `${rc.name}_${runToken}_${
+          crypto.randomUUID().split('-')[0]
+        }`;
+        const configWithUtf8 =
+          `daq_job_unique_id = "${uniqueJobName}"\n` + rc.config;
+
+        await ENRGDAQClient.runJob(clientId, configWithUtf8);
+
+        jobNames.push(uniqueJobName);
+        fullConfigDrafts.push(configWithUtf8);
+      }
+    } catch (e) {
+      console.error('Failed to start one or more jobs:', e);
+      // Clean up any jobs that were started
+      if (jobNames.length > 0) {
+        await this.cleanupJobs(clientId, jobNames);
+      }
+      throw new Error(
+        `Failed to start DAQ jobs: ${
+          e instanceof Error ? e.message : 'Unknown error'
+        }`
+      );
+    }
+
+    // 4. VERIFY all jobs are actually running before committing to database
+    const JOB_VERIFICATION_DELAY_MS = 2000; // Wait 2 seconds for jobs to initialize
+    const JOB_VERIFICATION_RETRIES = 3;
+    const JOB_VERIFICATION_RETRY_DELAY_MS = 1000;
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, JOB_VERIFICATION_DELAY_MS)
+    );
+
+    let verificationFailed = false;
+    let failedJobs: string[] = [];
+
+    for (let attempt = 0; attempt < JOB_VERIFICATION_RETRIES; attempt++) {
+      try {
+        const status = await ENRGDAQClient.getStatus(clientId);
+        const activeJobs = status?.daq_jobs || [];
+        const activeJobIds = activeJobs.map(
+          (job: {
+            unique_id: string;
+            is_alive?: boolean;
+            is_running?: boolean;
+          }) => job.unique_id
+        );
+
+        // Check which expected jobs are present and alive
+        failedJobs = [];
+        for (const expectedJobId of jobNames) {
+          const activeJob = activeJobs.find(
+            (job: {
+              unique_id: string;
+              is_alive?: boolean;
+              is_running?: boolean;
+            }) => job.unique_id === expectedJobId
+          );
+          if (!activeJob) {
+            failedJobs.push(expectedJobId);
+          } else if (activeJob.is_alive === false) {
+            // Job exists but is not alive - this indicates a startup failure
+            failedJobs.push(expectedJobId);
+          }
+        }
+
+        if (failedJobs.length === 0) {
+          // All jobs verified successfully
+          verificationFailed = false;
+          break;
+        }
+
+        console.warn(
+          `Job verification attempt ${
+            attempt + 1
+          }/${JOB_VERIFICATION_RETRIES}: ${
+            failedJobs.length
+          } jobs not yet active`
+        );
+        verificationFailed = true;
+
+        if (attempt < JOB_VERIFICATION_RETRIES - 1) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, JOB_VERIFICATION_RETRY_DELAY_MS)
+          );
+        }
+      } catch (e) {
+        console.error(
+          `Failed to verify job status (attempt ${attempt + 1}):`,
+          e
+        );
+        verificationFailed = true;
+        if (attempt < JOB_VERIFICATION_RETRIES - 1) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, JOB_VERIFICATION_RETRY_DELAY_MS)
+          );
+        }
+      }
+    }
+
+    if (verificationFailed) {
+      console.error(
+        `Job verification failed. Failed jobs: ${failedJobs.join(', ')}`
+      );
+      // Clean up all started jobs
+      await this.cleanupJobs(clientId, jobNames);
+      throw new Error(
+        `DAQ jobs failed to start properly. Failed jobs: ${failedJobs.join(
+          ', '
+        )}. ` +
+          `Jobs have been terminated. Please check your configuration and try again.`
+      );
+    }
+
+    // 5. Now that jobs are verified running, create the Run Entry in database
     const [run] = await db
       .insert(runs)
       .values({
@@ -132,10 +269,8 @@ export class RunController {
       })
       .returning();
 
-    // 3. Store parameter values if provided
-    // Parameters now come from templates, so we fetch all template parameters for this run type
+    // 6. Store parameter values if provided
     if (parameterValues && Object.keys(parameterValues).length > 0) {
-      // Get all template parameters for templates associated with this run type
       const paramDefs = await db
         .select({
           id: templateParameters.id,
@@ -151,7 +286,7 @@ export class RunController {
         )
         .where(eq(templateRunTypes.runTypeId, runTypeId));
 
-      // Deduplicate by parameter name (same param name from multiple templates)
+      // Deduplicate by parameter name
       const uniqueParams = new Map<string, (typeof paramDefs)[0]>();
       for (const param of paramDefs) {
         if (!uniqueParams.has(param.name)) {
@@ -168,10 +303,6 @@ export class RunController {
             parameterId: paramDef.id,
             value: value,
           });
-        } else if (paramDef.required && !paramDef.defaultValue) {
-          throw new Error(
-            `Missing required parameter: ${paramDef.displayName}`
-          );
         } else if (paramDef.defaultValue) {
           paramInserts.push({
             runId: run.id,
@@ -186,69 +317,23 @@ export class RunController {
       }
     }
 
-    // 4. Generate Configs from Templates (with parameter replacements)
-    const runConfigs = await this.generateRunConfigs(
-      run.id,
-      runTypeId,
-      parameterValues
-    );
+    // Store combined config - replace the temporary run ID (0) with actual run ID in stored config
+    // Note: The running jobs already have '0' in their configs, but for storage we record the real ID
+    const configWithRealId = fullConfigDrafts
+      .map((cfg) =>
+        cfg
+          .replace(/\{RUN_ID\}/g, run.id.toString())
+          .replace(/run-0/g, `run-${run.id}`)
+      )
+      .join('\n\n# -- NEXT JOB --\n\n');
 
-    if (runConfigs.length === 0) {
-      console.warn(
-        `No templates with type="run" found for Run ${run.id} (RunType: ${runTypeId})`
-      );
-    }
-
-    const jobNames: string[] = [];
-    const fullConfigDrafts: string[] = [];
-
-    // 5. Start Jobs on CNC
-    try {
-      for (const rc of runConfigs) {
-        const uniqueJobName = `${rc.name}_run-${run.id}_${
-          crypto.randomUUID().split('-')[0]
-        }`;
-        const configWithUtf8 =
-          `daq_job_unique_id = "${uniqueJobName}"\n` + rc.config;
-
-        await ENRGDAQClient.runJob(clientId, configWithUtf8);
-
-        jobNames.push(uniqueJobName);
-        fullConfigDrafts.push(configWithUtf8);
-      }
-    } catch (e) {
-      console.error('Failed to start one or more jobs:', e);
-      if (jobNames.length > 0) {
-        try {
-          await Promise.all(
-            jobNames.map((name) => ENRGDAQClient.stopJob(clientId, name, true))
-          );
-        } catch (cleanupErr) {
-          console.error(
-            'Failed to cleanup started jobs after error:',
-            cleanupErr
-          );
-        }
-      }
-
-      await db
-        .update(runs)
-        .set({ status: 'STOPPED', endTime: new Date() })
-        .where(eq(runs.id, run.id));
-      throw e;
-    }
-
-    // Store as JSON column (jobNames array)
-    // and combined config
-    const config = fullConfigDrafts.join('\n\n# -- NEXT JOB --\n\n');
-
-    // 6. Update Run with Config
+    // 7. Update Run with Config and Job IDs
     await db
       .update(runs)
-      .set({ config, daqJobIds: jobNames })
+      .set({ config: configWithRealId, daqJobIds: jobNames })
       .where(eq(runs.id, run.id));
 
-    // 7. Send associated message templates (non-blocking, log errors)
+    // 8. Send associated message templates (non-blocking, log errors)
     try {
       await this.sendRunMessages(
         run.id,
@@ -261,7 +346,28 @@ export class RunController {
       // Don't fail the run if messages fail to send
     }
 
-    return { ...run, config, daqJobIds: jobNames };
+    return { ...run, config: configWithRealId, daqJobIds: jobNames };
+  }
+
+  /**
+   * Helper to clean up started jobs when startup fails
+   */
+  private static async cleanupJobs(
+    clientId: string,
+    jobNames: string[]
+  ): Promise<void> {
+    console.log(`Cleaning up ${jobNames.length} jobs after startup failure...`);
+    try {
+      await Promise.all(
+        jobNames.map((name) =>
+          ENRGDAQClient.stopJob(clientId, name, true).catch((e) =>
+            console.error(`Failed to cleanup job ${name}:`, e)
+          )
+        )
+      );
+    } catch (cleanupErr) {
+      console.error('Failed to cleanup started jobs:', cleanupErr);
+    }
   }
 
   static async stopRun(runId: number, clientId: string): Promise<void> {
