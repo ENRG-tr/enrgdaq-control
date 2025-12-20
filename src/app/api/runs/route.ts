@@ -17,6 +17,7 @@ export async function GET(req: Request) {
 
 // POST start new run
 export async function POST(req: Request) {
+  console.log('[API /runs POST] Received request');
   try {
     const body = await req.json();
     const {
@@ -26,6 +27,9 @@ export async function POST(req: Request) {
       parameterValues,
       scheduledEndTime,
     } = body;
+    console.log(
+      `[API /runs POST] Starting run for client ${clientId}, runTypeId ${runTypeId}`
+    );
 
     if (!description || !clientId) {
       return NextResponse.json(
@@ -46,8 +50,10 @@ export async function POST(req: Request) {
       parameterValues,
       parsedScheduledEndTime
     );
+    console.log(`[API /runs POST] Run started successfully: ${run.id}`);
     return NextResponse.json(run);
   } catch (e: any) {
+    console.error('[API /runs POST] Error:', e.message);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

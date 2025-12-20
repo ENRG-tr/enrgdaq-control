@@ -114,19 +114,25 @@ export class RunController {
     parameterValues?: Record<string, string>, // { parameterName: value }
     scheduledEndTime?: Date // Optional scheduled end time for timed runs
   ): Promise<Run> {
+    console.log('[startRun] Starting run process...');
+
     // 1. Check if run exists
+    console.log('[startRun] Checking for existing active run...');
     const existing = await this.getActiveRun();
     if (existing) {
       throw new Error('A run is already in progress');
     }
+    console.log('[startRun] No active run found.');
 
     // 2. Generate Configs from Templates FIRST (before creating run entry)
     // We use a temporary ID (0) for config generation, then update after run is created
+    console.log('[startRun] Generating configs from templates...');
     const runConfigs = await this.generateRunConfigs(
       0, // Temporary ID - we'll regenerate with real ID after
       runTypeId,
       parameterValues
     );
+    console.log(`[startRun] Generated ${runConfigs.length} configs.`);
 
     if (runConfigs.length === 0) {
       throw new Error(
@@ -140,6 +146,9 @@ export class RunController {
     // 3. Start Jobs on CNC (before creating database entry)
     // Generate unique job names using a timestamp-based approach since we don't have run ID yet
     const runToken = crypto.randomUUID().split('-')[0];
+    console.log(
+      `[startRun] Starting ${runConfigs.length} jobs with token ${runToken}...`
+    );
 
     try {
       for (const rc of runConfigs) {
@@ -149,13 +158,15 @@ export class RunController {
         const configWithUtf8 =
           `daq_job_unique_id = "${uniqueJobName}"\n` + rc.config;
 
+        console.log(`[startRun] Starting job: ${uniqueJobName}`);
         await ENRGDAQClient.runJob(clientId, configWithUtf8);
+        console.log(`[startRun] Job started: ${uniqueJobName}`);
 
         jobNames.push(uniqueJobName);
         fullConfigDrafts.push(configWithUtf8);
       }
     } catch (e) {
-      console.error('Failed to start one or more jobs:', e);
+      console.error('[startRun] Failed to start one or more jobs:', e);
       // Clean up any jobs that were started
       if (jobNames.length > 0) {
         await this.cleanupJobs(clientId, jobNames);
@@ -167,11 +178,16 @@ export class RunController {
       );
     }
 
+    console.log(`[startRun] All ${jobNames.length} jobs started. Verifying...`);
+
     // 4. VERIFY all jobs are actually running before committing to database
     const JOB_VERIFICATION_DELAY_MS = 2000; // Wait 2 seconds for jobs to initialize
     const JOB_VERIFICATION_RETRIES = 3;
     const JOB_VERIFICATION_RETRY_DELAY_MS = 1000;
 
+    console.log(
+      `[startRun] Waiting ${JOB_VERIFICATION_DELAY_MS}ms before verification...`
+    );
     await new Promise((resolve) =>
       setTimeout(resolve, JOB_VERIFICATION_DELAY_MS)
     );

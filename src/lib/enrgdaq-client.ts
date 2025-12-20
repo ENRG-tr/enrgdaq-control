@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: process.env.ENRGDAQ_API_BASE || 'http://localhost:5090',
+  timeout: 30000, // 30 second timeout to prevent indefinite hanging
 });
 
 export class ENRGDAQClient {
