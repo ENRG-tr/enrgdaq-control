@@ -42,9 +42,16 @@ export class ENRGDAQClient {
     await api.post(`/clients/${clientId}/stop_daqjobs`);
   }
 
-  static async runJob(clientId: string, config: string) {
+  static async runJob(
+    clientId: string,
+    config: string,
+    restartOnCrash: boolean = true
+  ) {
     try {
-      await api.post(`/clients/${clientId}/run_custom_daqjob`, { config });
+      await api.post(`/clients/${clientId}/run_custom_daqjob`, {
+        config,
+        restart_on_crash: restartOnCrash,
+      });
     } catch (e: unknown) {
       const error = e as { response?: { data?: string }; message?: string };
       throw new Error(

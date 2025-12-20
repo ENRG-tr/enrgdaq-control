@@ -24,6 +24,8 @@ export interface Template {
   payloadTemplate?: string | null;
   targetDaqJobType?: string | null; // Target DAQ job type, null = broadcast
   defaultClientId?: string | null; // Default client to select when using this template
+  // Run template fields
+  restartOnCrash?: boolean; // Restart job on crash (for run templates)
 }
 
 export interface RunType {
@@ -187,6 +189,7 @@ export const API = {
     payloadTemplate?: string;
     targetDaqJobType?: string | null;
     defaultClientId?: string | null;
+    restartOnCrash?: boolean;
   }): Promise<Template> {
     const { data } = await api.post('/templates', createData);
     return data;
@@ -203,6 +206,7 @@ export const API = {
       payloadTemplate?: string;
       targetDaqJobType?: string | null;
       defaultClientId?: string | null;
+      restartOnCrash?: boolean;
     }
   ): Promise<Template> {
     const { data } = await api.post(`/templates/${id}/update`, updateData);

@@ -158,8 +158,10 @@ export class RunController {
         const configWithUtf8 =
           `daq_job_unique_id = "${uniqueJobName}"\n` + rc.config;
 
-        console.log(`[startRun] Starting job: ${uniqueJobName}`);
-        await ENRGDAQClient.runJob(clientId, configWithUtf8);
+        console.log(
+          `[startRun] Starting job: ${uniqueJobName} (restartOnCrash: ${rc.restartOnCrash})`
+        );
+        await ENRGDAQClient.runJob(clientId, configWithUtf8, rc.restartOnCrash);
         console.log(`[startRun] Job started: ${uniqueJobName}`);
 
         jobNames.push(uniqueJobName);
@@ -428,11 +430,12 @@ export class RunController {
     runId: number,
     runTypeId: number,
     parameterValues?: Record<string, string>
-  ): Promise<Array<{ name: string; config: string }>> {
+  ): Promise<Array<{ name: string; config: string; restartOnCrash: boolean }>> {
     const rows = await db
       .select({
         name: templates.name,
         config: templates.config,
+        restartOnCrash: templates.restartOnCrash,
       })
       .from(templates)
       .innerJoin(
@@ -463,6 +466,7 @@ export class RunController {
       return {
         name: t.name,
         config,
+        restartOnCrash: t.restartOnCrash,
       };
     });
   }

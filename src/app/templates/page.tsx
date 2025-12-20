@@ -37,6 +37,8 @@ export default function TemplatesPage() {
     payloadTemplate: '',
     targetDaqJobType: '' as string, // Empty string = broadcast
     defaultClientId: '' as string, // Empty string = no default
+    // Run template fields
+    restartOnCrash: true, // Default to true
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -139,6 +141,7 @@ export default function TemplatesPage() {
       payloadTemplate: t.payloadTemplate || '',
       targetDaqJobType: t.targetDaqJobType || '',
       defaultClientId: t.defaultClientId || '',
+      restartOnCrash: t.restartOnCrash ?? true,
     });
     setError(null);
     setIsAddingParam(false);
@@ -159,6 +162,7 @@ export default function TemplatesPage() {
       payloadTemplate: '',
       targetDaqJobType: '',
       defaultClientId: '',
+      restartOnCrash: true,
     });
     setParameters([]);
     setEditingParamId(null);
@@ -181,6 +185,7 @@ export default function TemplatesPage() {
       payloadTemplate: selectedTemplate.payloadTemplate || '',
       targetDaqJobType: selectedTemplate.targetDaqJobType || '',
       defaultClientId: selectedTemplate.defaultClientId || '',
+      restartOnCrash: selectedTemplate.restartOnCrash ?? true,
     });
   };
 
@@ -200,6 +205,7 @@ export default function TemplatesPage() {
         payloadTemplate: selectedTemplate.payloadTemplate || '',
         targetDaqJobType: selectedTemplate.targetDaqJobType || '',
         defaultClientId: selectedTemplate.defaultClientId || '',
+        restartOnCrash: selectedTemplate.restartOnCrash ?? true,
       });
     } else {
       setFormData({
@@ -212,6 +218,7 @@ export default function TemplatesPage() {
         payloadTemplate: '',
         targetDaqJobType: '',
         defaultClientId: '',
+        restartOnCrash: true,
       });
     }
     setError(null);
@@ -349,6 +356,8 @@ export default function TemplatesPage() {
             formData.type === 'message'
               ? formData.defaultClientId || null
               : null,
+          restartOnCrash:
+            formData.type === 'run' ? formData.restartOnCrash : true,
         });
         await loadData();
         setSelectedTemplate(newTemplate);
@@ -364,6 +373,8 @@ export default function TemplatesPage() {
           payloadTemplate: formData.payloadTemplate,
           targetDaqJobType: formData.targetDaqJobType || null,
           defaultClientId: formData.defaultClientId || null,
+          restartOnCrash:
+            formData.type === 'run' ? formData.restartOnCrash : true,
         });
         await loadData();
         setSelectedTemplate(updated);
@@ -1052,21 +1063,51 @@ export default function TemplatesPage() {
 
                 {/* Config (for non-message templates) */}
                 {formData.type !== 'message' && (
-                  <div className="mb-3 flex-grow-1 d-flex flex-column h-100">
-                    <label className="form-label text-muted">
-                      Configuration (TOML)
-                    </label>
-                    <textarea
-                      className="form-control bg-dark text-light border-secondary font-monospace"
-                      style={{ minHeight: '400px', resize: 'none' }}
-                      value={formData.config}
-                      onChange={(e) =>
-                        setFormData({ ...formData, config: e.target.value })
-                      }
-                      disabled={!isCreating && !isEditing}
-                      spellCheck={false}
-                    />
-                  </div>
+                  <>
+                    <div className="mb-3">
+                      <div className="form-check form-switch">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="restartOnCrash"
+                          checked={formData.restartOnCrash}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              restartOnCrash: e.target.checked,
+                            })
+                          }
+                          disabled={!isCreating && !isEditing}
+                        />
+                        <label
+                          className="form-check-label"
+                          htmlFor="restartOnCrash"
+                        >
+                          Restart on Crash
+                        </label>
+                      </div>
+                      <div className="form-text">
+                        If enabled, the DAQ job will automatically restart if it
+                        crashes during execution.
+                      </div>
+                    </div>
+
+                    <div className="mb-3 flex-grow-1 d-flex flex-column h-100">
+                      <label className="form-label text-muted">
+                        Configuration (TOML)
+                      </label>
+                      <textarea
+                        className="form-control bg-dark text-light border-secondary font-monospace"
+                        style={{ minHeight: '400px', resize: 'none' }}
+                        value={formData.config}
+                        onChange={(e) =>
+                          setFormData({ ...formData, config: e.target.value })
+                        }
+                        disabled={!isCreating && !isEditing}
+                        spellCheck={false}
+                      />
+                    </div>
+                  </>
                 )}
               </div>
             </div>

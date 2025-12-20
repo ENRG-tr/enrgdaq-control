@@ -58,5 +58,6 @@ export interface TemplateUpdateData {
   payloadTemplate?: string;
   targetDaqJobType?: string | null;
   defaultClientId?: string | null;
+  restartOnCrash?: boolean;
   updatedAt?: Date;
 }

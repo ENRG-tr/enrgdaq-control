@@ -46,6 +46,8 @@ export const templates = pgTable('templates', {
   payloadTemplate: text('payload_template'), // JSON template with placeholders like {REASON}
   targetDaqJobType: text('target_daq_job_type'), // e.g., 'DAQJobStoreCSV', null = broadcast
   defaultClientId: text('default_client_id'), // Default client to select when using this message template
+  // Run template fields (used when type='run')
+  restartOnCrash: boolean('restart_on_crash').notNull().default(true), // Restart job on crash
 });
 
 // Junction table for Many-to-Many relationship between Templates and RunTypes
