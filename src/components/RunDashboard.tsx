@@ -125,6 +125,18 @@ const RunDashboard = () => {
     });
   }, [clients, activeRunType]);
 
+  // Update selectedClient when filteredClients changes and current selection is invalid
+  useEffect(() => {
+    if (filteredClients.length === 0) return;
+
+    const isCurrentClientValid = filteredClients.some(
+      (c) => c.id === selectedClient
+    );
+    if (!isCurrentClientValid) {
+      selectClient(filteredClients[0].id);
+    }
+  }, [filteredClients, selectedClient, selectClient]);
+
   const handleStart = async () => {
     if (!description) return;
 
