@@ -128,9 +128,10 @@ export class RunController {
     // We use a temporary ID (0) for config generation, then update after run is created
     console.log('[startRun] Generating configs from templates...');
     const runConfigs = await this.generateRunConfigs(
-      0, // Temporary ID - we'll regenerate with real ID after
+      0, // Temporary ID - we'll replace {RUN_ID} after getting real ID
       runTypeId,
-      parameterValues
+      parameterValues,
+      true // Skip RUN_ID replacement - we don't have the real ID yet
     );
     console.log(`[startRun] Generated ${runConfigs.length} configs.`);
 
@@ -429,7 +430,8 @@ export class RunController {
   private static async generateRunConfigs(
     runId: number,
     runTypeId: number,
-    parameterValues?: Record<string, string>
+    parameterValues?: Record<string, string>,
+    skipRunIdReplacement: boolean = false
   ): Promise<Array<{ name: string; config: string; restartOnCrash: boolean }>> {
     const rows = await db
       .select({
@@ -450,7 +452,9 @@ export class RunController {
       );
 
     return rows.map((t) => {
-      let config = t.config.replace(/\{RUN_ID\}/g, runId.toString());
+      let config = skipRunIdReplacement
+        ? t.config
+        : t.config.replace(/\{RUN_ID\}/g, runId.toString());
 
       // Replace parameter placeholders like {MV_THRESHOLD}
       if (parameterValues) {
