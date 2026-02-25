@@ -33,7 +33,7 @@ export default function MessagesPage() {
 
   // Target selection
   const [targetMode, setTargetMode] = useState<'broadcast' | 'specific'>(
-    'broadcast'
+    'broadcast',
   );
   const [targetDaqJobType, setTargetDaqJobType] = useState('');
 
@@ -89,7 +89,7 @@ export default function MessagesPage() {
     if (template.defaultClientId) {
       // Check if the default client exists in our clients list
       const clientExists = clients.some(
-        (c) => c.id === template.defaultClientId
+        (c) => c.id === template.defaultClientId,
       );
       if (clientExists) {
         selectClient(template.defaultClientId);
@@ -183,7 +183,7 @@ export default function MessagesPage() {
         for (const param of parameters) {
           if (param.required && !parameterValues[param.name]) {
             throw new Error(
-              `Please fill in required parameter: ${param.displayName}`
+              `Please fill in required parameter: ${param.displayName}`,
             );
           }
         }
@@ -318,7 +318,7 @@ export default function MessagesPage() {
                       value={selectedTemplateId}
                       onChange={(e) =>
                         setSelectedTemplateId(
-                          e.target.value === '' ? '' : Number(e.target.value)
+                          e.target.value === '' ? '' : Number(e.target.value),
                         )
                       }
                     >
@@ -375,7 +375,7 @@ export default function MessagesPage() {
                               onChange={(e) =>
                                 handleParameterChange(
                                   param.name,
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                             >
@@ -400,7 +400,7 @@ export default function MessagesPage() {
                               onChange={(e) =>
                                 handleParameterChange(
                                   param.name,
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                             />
@@ -594,12 +594,77 @@ export default function MessagesPage() {
                       <summary className="text-muted small cursor-pointer">
                         View Payload
                       </summary>
-                      <pre
-                        className="text-muted small mb-0 mt-2"
-                        style={{ maxHeight: '100px', overflow: 'auto' }}
-                      >
-                        {msg.payload}
-                      </pre>
+                      {(() => {
+                        try {
+                          const parsed = JSON.parse(msg.payload);
+                          if (
+                            typeof parsed !== 'object' ||
+                            parsed === null ||
+                            Object.keys(parsed).length === 0
+                          ) {
+                            return (
+                              <pre
+                                className="text-muted small mb-0 mt-2"
+                                style={{ maxHeight: '100px', overflow: 'auto' }}
+                              >
+                                {msg.payload}
+                              </pre>
+                            );
+                          }
+                          return (
+                            <div className="table-responsive mt-2">
+                              <table
+                                className="table table-sm table-dark table-bordered border-secondary mb-0"
+                                style={{ fontSize: '0.85rem' }}
+                              >
+                                <tbody>
+                                  {Object.entries(parsed).map(
+                                    ([key, value]) => (
+                                      <tr key={key}>
+                                        <th
+                                          className="text-muted fw-normal align-middle"
+                                          style={{
+                                            width: '30%',
+                                            whiteSpace: 'nowrap',
+                                          }}
+                                        >
+                                          {key}
+                                        </th>
+                                        <td className="text-light text-break font-monospace align-middle">
+                                          {typeof value === 'object' &&
+                                          value !== null ? (
+                                            <pre
+                                              className="mb-0 text-info"
+                                              style={{
+                                                fontSize: '0.8rem',
+                                                background: 'transparent',
+                                                padding: 0,
+                                              }}
+                                            >
+                                              {JSON.stringify(value, null, 2)}
+                                            </pre>
+                                          ) : (
+                                            String(value)
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ),
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        } catch (e) {
+                          return (
+                            <pre
+                              className="text-muted small mb-0 mt-2"
+                              style={{ maxHeight: '100px', overflow: 'auto' }}
+                            >
+                              {msg.payload}
+                            </pre>
+                          );
+                        }
+                      })()}
                     </details>
                   </div>
                 ))}
