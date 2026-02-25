@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { API } from '@/lib/api-client';
+import { useStore } from '@/lib/store';
 
 const SidebarLink = ({
   href,
@@ -45,13 +45,11 @@ const SidebarLink = ({
 };
 
 export default function Sidebar() {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { isAdmin, checkAuthStatus } = useStore();
 
   useEffect(() => {
-    API.getAuthStatus()
-      .then((data) => setIsAdmin(data.isAdmin))
-      .catch(() => setIsAdmin(false));
-  }, []);
+    checkAuthStatus();
+  }, [checkAuthStatus]);
 
   return (
     <div

@@ -23,6 +23,8 @@ const RunDashboard = () => {
     runsPage,
     runsLimit,
     setRunsPage,
+    isAdmin,
+    checkAuthStatus,
   } = useStore();
 
   const [description, setDescription] = useState('');
@@ -72,7 +74,8 @@ const RunDashboard = () => {
 
   useEffect(() => {
     fetchRunTypes();
-  }, [fetchRunTypes]);
+    checkAuthStatus();
+  }, [fetchRunTypes, checkAuthStatus]);
 
   // Fetch aggregated parameters when run type changes
   useEffect(() => {
@@ -238,6 +241,10 @@ const RunDashboard = () => {
   };
 
   const handleDelete = async (runId: number, status: string) => {
+    if (!isAdmin) {
+      toast.error('Only administrators can delete runs.');
+      return;
+    }
     if (status === 'RUNNING') {
       toast.error('Cannot delete a running run. Please stop it first.');
       return;
@@ -260,6 +267,21 @@ const RunDashboard = () => {
   const getRunTypeName = (typeId: number | null) => {
     if (!typeId) return '-';
     return runTypes.find((rt) => rt.id === typeId)?.name || 'Unknown';
+  };
+
+  const formatDuration = (
+    start: Date | string,
+    end: Date | string | null | undefined,
+  ) => {
+    const startTime = new Date(start).getTime();
+    const endTime = end ? new Date(end).getTime() : new Date().getTime();
+    const diff = Math.max(0, endTime - startTime);
+
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    return `${hours}h ${minutes}m ${seconds}s`;
   };
 
   const handleParameterChange = (paramName: string, value: string) => {
@@ -679,8 +701,9 @@ const RunDashboard = () => {
                 <th>Type</th>
                 <th>Description</th>
                 <th>Start Time</th>
+                <th>End Time / Duration</th>
                 <th>Status</th>
-                <th className="pe-4 text-end">Actions</th>
+                {isAdmin && <th className="pe-4 text-end">Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -702,6 +725,16 @@ const RunDashboard = () => {
                   <td>{run.description}</td>
                   <td>{new Date(run.startTime).toLocaleString()}</td>
                   <td>
+                    <div>
+                      {run.endTime
+                        ? new Date(run.endTime).toLocaleString()
+                        : '-'}
+                    </div>
+                    <small className="text-muted">
+                      {formatDuration(run.startTime, run.endTime)}
+                    </small>
+                  </td>
+                  <td>
                     <span
                       className={`badge ${
                         run.status === 'RUNNING' ? 'bg-success' : 'bg-secondary'
@@ -710,16 +743,18 @@ const RunDashboard = () => {
                       {run.status}
                     </span>
                   </td>
-                  <td className="pe-4 text-end">
-                    <button
-                      className="btn btn-sm btn-outline-danger"
-                      onClick={() => handleDelete(run.id, run.status)}
-                      disabled={run.status === 'RUNNING'}
-                      title="Delete Run"
-                    >
-                      <i className="fa-solid fa-trash"></i>
-                    </button>
-                  </td>
+                  {isAdmin && (
+                    <td className="pe-4 text-end">
+                      <button
+                        className="btn btn-sm btn-outline-danger"
+                        onClick={() => handleDelete(run.id, run.status)}
+                        disabled={run.status === 'RUNNING'}
+                        title="Delete Run"
+                      >
+                        <i className="fa-solid fa-trash"></i>
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
               {runs.length === 0 && (

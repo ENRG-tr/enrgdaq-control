@@ -9,6 +9,7 @@ interface AppState {
   clientStatus: ClientStatus | null;
   clientOnline: boolean;
   logs: LogEntry[];
+  isAdmin: boolean;
 
   // Run State
   runs: Run[];
@@ -22,6 +23,7 @@ interface AppState {
   fetchClients: () => Promise<void>;
   selectClient: (id: string) => void;
   pollClientStatus: () => Promise<void>;
+  checkAuthStatus: () => Promise<void>;
 
   startRun: (
     description: string,
@@ -42,6 +44,7 @@ export const useStore = create<AppState>((set, get) => ({
   clientStatus: null,
   clientOnline: false,
   logs: [],
+  isAdmin: false,
 
   runs: [],
   runsTotal: 0,
@@ -83,6 +86,16 @@ export const useStore = create<AppState>((set, get) => ({
       // The existing code did NOT poll fetchRuns inside pollClientStatus, so I leave it.
     } catch (e) {
       set({ clientOnline: false, clientStatus: null });
+    }
+  },
+
+  checkAuthStatus: async () => {
+    try {
+      const { isAdmin } = await API.getAuthStatus();
+      set({ isAdmin });
+    } catch (e) {
+      console.error('Failed to fetch auth status', e);
+      set({ isAdmin: false });
     }
   },
 
