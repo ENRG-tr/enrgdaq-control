@@ -12,6 +12,7 @@ const RunDashboard = () => {
     activeRun,
     startRun,
     stopRun,
+    deleteRun,
     selectedClient,
     clientOnline,
     clients,
@@ -85,7 +86,7 @@ const RunDashboard = () => {
       setLoadingParams(true);
       try {
         const params = await API.getAggregatedParametersForRunType(
-          Number(selectedRunTypeId)
+          Number(selectedRunTypeId),
         );
         setParameters(params);
         // Initialize values with run type default > template default > empty
@@ -108,7 +109,7 @@ const RunDashboard = () => {
 
   const activeRunType = runTypes.find(
     (rt) =>
-      rt.id === (selectedRunTypeId === '' ? -1 : Number(selectedRunTypeId))
+      rt.id === (selectedRunTypeId === '' ? -1 : Number(selectedRunTypeId)),
   );
 
   const filteredClients = React.useMemo(() => {
@@ -130,7 +131,7 @@ const RunDashboard = () => {
     if (filteredClients.length === 0) return;
 
     const isCurrentClientValid = filteredClients.some(
-      (c) => c.id === selectedClient
+      (c) => c.id === selectedClient,
     );
     if (!isCurrentClientValid) {
       selectClient(filteredClients[0].id);
@@ -167,7 +168,7 @@ const RunDashboard = () => {
         description,
         selectedRunTypeId ? Number(selectedRunTypeId) : undefined,
         parameterValues,
-        scheduledEndTime
+        scheduledEndTime,
       );
       setDescription('');
       setParameterValues({});
@@ -233,6 +234,26 @@ const RunDashboard = () => {
       toast.error('Failed to stop run: ' + (error.message || 'Unknown error'));
     } finally {
       setIsStopping(false);
+    }
+  };
+
+  const handleDelete = async (runId: number, status: string) => {
+    if (status === 'RUNNING') {
+      toast.error('Cannot delete a running run. Please stop it first.');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to delete run #${runId}?`)) {
+      return;
+    }
+    try {
+      await deleteRun(runId);
+      toast.success(`Run #${runId} deleted successfully`);
+    } catch (e: unknown) {
+      const error = e as { message?: string };
+      console.error('Failed to delete run:', e);
+      toast.error(
+        'Failed to delete run: ' + (error.message || 'Unknown error'),
+      );
     }
   };
 
@@ -364,7 +385,7 @@ const RunDashboard = () => {
                   value={selectedRunTypeId}
                   onChange={(e) =>
                     setSelectedRunTypeId(
-                      e.target.value === '' ? '' : Number(e.target.value)
+                      e.target.value === '' ? '' : Number(e.target.value),
                     )
                   }
                   disabled={!!activeRun || !clientOnline}
@@ -523,7 +544,7 @@ const RunDashboard = () => {
                         value={durationHours}
                         onChange={(e) =>
                           setDurationHours(
-                            Math.max(0, parseInt(e.target.value) || 0)
+                            Math.max(0, parseInt(e.target.value) || 0),
                           )
                         }
                         disabled={!!activeRun || !clientOnline}
@@ -543,8 +564,8 @@ const RunDashboard = () => {
                           setDurationMinutes(
                             Math.min(
                               59,
-                              Math.max(0, parseInt(e.target.value) || 0)
-                            )
+                              Math.max(0, parseInt(e.target.value) || 0),
+                            ),
                           )
                         }
                         disabled={!!activeRun || !clientOnline}
@@ -557,8 +578,8 @@ const RunDashboard = () => {
                         {durationMinutes > 0
                           ? `${durationMinutes}m`
                           : durationHours === 0
-                          ? 'set a duration'
-                          : ''}
+                            ? 'set a duration'
+                            : ''}
                       </div>
                     </div>
                   </div>
@@ -659,6 +680,7 @@ const RunDashboard = () => {
                 <th>Description</th>
                 <th>Start Time</th>
                 <th>Status</th>
+                <th className="pe-4 text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -687,6 +709,16 @@ const RunDashboard = () => {
                     >
                       {run.status}
                     </span>
+                  </td>
+                  <td className="pe-4 text-end">
+                    <button
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => handleDelete(run.id, run.status)}
+                      disabled={run.status === 'RUNNING'}
+                      title="Delete Run"
+                    >
+                      <i className="fa-solid fa-trash"></i>
+                    </button>
                   </td>
                 </tr>
               ))}

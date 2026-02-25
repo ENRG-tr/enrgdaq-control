@@ -22,12 +22,16 @@ export class RunController {
     // Check liveness of any locally RUNNING run before returning
     const activeRun = await this.getActiveRun(); // This triggers the check
 
-    const [totalResult] = await db.select({ count: count() }).from(runs);
+    const [totalResult] = await db
+      .select({ count: count() })
+      .from(runs)
+      .where(eq(runs.isDeleted, false));
     const total = totalResult?.count || 0;
 
     const data = await db
       .select()
       .from(runs)
+      .where(eq(runs.isDeleted, false))
       .orderBy(desc(runs.id))
       .limit(limit)
       .offset(offset);
@@ -489,6 +493,21 @@ export class RunController {
       .update(runs)
       .set({ status: 'COMPLETED', endTime: new Date() })
       .where(eq(runs.id, runId));
+  }
+
+  static async deleteRun(runId: number): Promise<void> {
+    const [run] = await db
+      .select()
+      .from(runs)
+      .where(eq(runs.id, runId))
+      .limit(1);
+
+    if (!run) throw new Error('Run not found');
+    if (run.status === 'RUNNING') {
+      throw new Error('Cannot delete a running run. Stop it first.');
+    }
+
+    await db.update(runs).set({ isDeleted: true }).where(eq(runs.id, runId));
   }
 
   private static async generateRunConfigs(

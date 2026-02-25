@@ -27,9 +27,10 @@ interface AppState {
     description: string,
     runTypeId?: number,
     parameterValues?: Record<string, string>,
-    scheduledEndTime?: Date | null
+    scheduledEndTime?: Date | null,
   ) => Promise<void>;
   stopRun: () => Promise<void>;
+  deleteRun: (runId: number) => Promise<void>;
   fetchRuns: () => Promise<void>;
   setRunsPage: (page: number) => void;
   fetchRunTypes: () => Promise<void>;
@@ -113,7 +114,7 @@ export const useStore = create<AppState>((set, get) => ({
     description: string,
     runTypeId?: number,
     parameterValues?: Record<string, string>,
-    scheduledEndTime?: Date | null
+    scheduledEndTime?: Date | null,
   ) => {
     const { selectedClient } = get();
     if (!selectedClient) throw new Error('No client selected');
@@ -122,7 +123,7 @@ export const useStore = create<AppState>((set, get) => ({
       selectedClient,
       runTypeId,
       parameterValues,
-      scheduledEndTime
+      scheduledEndTime,
     );
     set({ runsPage: 1 }); // Reset to first page on new run
     await get().fetchRuns();
@@ -132,6 +133,11 @@ export const useStore = create<AppState>((set, get) => ({
     const { activeRun, selectedClient } = get();
     if (!activeRun || !selectedClient) return;
     await API.stopRun(activeRun.id, selectedClient);
+    await get().fetchRuns();
+  },
+
+  deleteRun: async (runId: number) => {
+    await API.deleteRun(runId);
     await get().fetchRuns();
   },
 }));

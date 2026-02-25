@@ -20,6 +20,7 @@ export const runs = pgTable('runs', {
   config: text('config'),
   clientId: text('client_id'),
   runTypeId: integer('run_type_id').references(() => runTypes.id),
+  isDeleted: boolean('is_deleted').notNull().default(false),
 });
 
 // Run Types table - Defines types/modes of runs (e.g. Calibration, Physics)
@@ -63,7 +64,7 @@ export const templateRunTypes = pgTable(
   },
   (t) => ({
     pk: { columns: [t.templateId, t.runTypeId] },
-  })
+  }),
 );
 
 // Template Parameters - Shared parameter system for ALL templates (run and message)

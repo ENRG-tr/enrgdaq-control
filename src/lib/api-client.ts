@@ -89,7 +89,7 @@ export const API = {
 
   async getRuns(
     page: number = 1,
-    limit: number = 10
+    limit: number = 10,
   ): Promise<{ runs: Run[]; total: number; activeRun: Run | null }> {
     const { data } = await api.get('/runs', { params: { page, limit } });
     return data;
@@ -104,7 +104,7 @@ export const API = {
    * Get aggregated parameters from all templates associated with this run type
    */
   async getAggregatedParametersForRunType(
-    runTypeId: number
+    runTypeId: number,
   ): Promise<AggregatedParameter[]> {
     const { data } = await api.get(`/run-types/${runTypeId}/parameters`);
     return data;
@@ -116,7 +116,7 @@ export const API = {
   async setRunTypeParameterDefault(
     runTypeId: number,
     parameterId: number,
-    defaultValue: string | null
+    defaultValue: string | null,
   ): Promise<void> {
     await api.post(`/run-types/${runTypeId}/parameters`, {
       parameterId,
@@ -135,7 +135,11 @@ export const API = {
 
   async updateRunType(
     id: number,
-    updateData: { name?: string; description?: string; requiredTags?: string[] }
+    updateData: {
+      name?: string;
+      description?: string;
+      requiredTags?: string[];
+    },
   ): Promise<RunType> {
     const { data } = await api.post(`/run-types/${id}/update`, updateData);
     return data;
@@ -147,7 +151,7 @@ export const API = {
 
   async updateRunTypeTemplates(
     id: number,
-    templateIds: number[]
+    templateIds: number[],
   ): Promise<void> {
     await api.post(`/run-types/${id}/templates`, { templateIds });
   },
@@ -157,7 +161,7 @@ export const API = {
     clientId: string,
     runTypeId?: number,
     parameterValues?: Record<string, string>,
-    scheduledEndTime?: Date | null
+    scheduledEndTime?: Date | null,
   ): Promise<Run> {
     const { data } = await api.post('/runs', {
       description,
@@ -171,6 +175,10 @@ export const API = {
 
   async stopRun(runId: number, clientId: string): Promise<void> {
     await api.post(`/runs/${runId}/stop`, { clientId });
+  },
+
+  async deleteRun(runId: number): Promise<void> {
+    await api.delete(`/runs/${runId}`);
   },
 
   // Templates
@@ -207,7 +215,7 @@ export const API = {
       targetDaqJobType?: string | null;
       defaultClientId?: string | null;
       restartOnCrash?: boolean;
-    }
+    },
   ): Promise<Template> {
     const { data } = await api.post(`/templates/${id}/update`, updateData);
     return data;
@@ -255,7 +263,7 @@ export const API = {
 
   async getMessages(
     page: number = 1,
-    limit: number = 20
+    limit: number = 20,
   ): Promise<{ messages: Message[]; total: number }> {
     const { data } = await api.get('/messages', { params: { page, limit } });
     return data;
@@ -272,7 +280,7 @@ export const API = {
   },
 
   async getTemplateParameters(
-    templateId: number
+    templateId: number,
   ): Promise<TemplateParameter[]> {
     const { data } = await api.get(`/templates/${templateId}/parameters`);
     return data;
@@ -286,11 +294,11 @@ export const API = {
       type?: string;
       defaultValue?: string;
       required?: boolean;
-    }
+    },
   ): Promise<TemplateParameter> {
     const { data } = await api.post(
       `/templates/${templateId}/parameters`,
-      paramData
+      paramData,
     );
     return data;
   },
@@ -303,11 +311,11 @@ export const API = {
       type?: string;
       defaultValue?: string;
       required?: boolean;
-    }
+    },
   ): Promise<TemplateParameter> {
     const { data } = await api.put(
       `/templates/parameters/${paramId}`,
-      updateData
+      updateData,
     );
     return data;
   },

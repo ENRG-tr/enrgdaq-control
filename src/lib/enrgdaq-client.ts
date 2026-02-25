@@ -45,7 +45,7 @@ export class ENRGDAQClient {
   static async runJob(
     clientId: string,
     config: string,
-    restartOnCrash: boolean = true
+    restartOnCrash: boolean = true,
   ) {
     try {
       await api.post(`/clients/${clientId}/run_custom_daqjob`, {
@@ -53,11 +53,15 @@ export class ENRGDAQClient {
         restart_on_crash: restartOnCrash,
       });
     } catch (e: unknown) {
-      const error = e as { response?: { data?: string }; message?: string };
+      const error = e as { response?: { data?: any }; message?: string };
+      const responseData =
+        typeof error.response?.data === 'object'
+          ? JSON.stringify(error.response?.data)
+          : error.response?.data;
       throw new Error(
         `Failed to run job: ${
-          error.response?.data || error.message || 'Unknown error'
-        }`
+          responseData || error.message || 'Unknown error'
+        }`,
       );
     }
   }
@@ -69,11 +73,15 @@ export class ENRGDAQClient {
         remove,
       });
     } catch (e: unknown) {
-      const error = e as { response?: { data?: string }; message?: string };
+      const error = e as { response?: { data?: any }; message?: string };
+      const responseData =
+        typeof error.response?.data === 'object'
+          ? JSON.stringify(error.response?.data)
+          : error.response?.data;
       throw new Error(
         `Failed to stop job: ${
-          error.response?.data || error.message || 'Unknown error'
-        }`
+          responseData || error.message || 'Unknown error'
+        }`,
       );
     }
   }
@@ -103,7 +111,7 @@ export class ENRGDAQClient {
     clientId: string,
     messageType: string,
     payload: string,
-    targetDaqJobUniqueId?: string | null
+    targetDaqJobUniqueId?: string | null,
   ): Promise<void> {
     try {
       await api.post(`/clients/${clientId}/send_message`, {
@@ -112,11 +120,15 @@ export class ENRGDAQClient {
         target_daq_job_unique_id: targetDaqJobUniqueId || null,
       });
     } catch (e: unknown) {
-      const error = e as { response?: { data?: string }; message?: string };
+      const error = e as { response?: { data?: any }; message?: string };
+      const responseData =
+        typeof error.response?.data === 'object'
+          ? JSON.stringify(error.response?.data)
+          : error.response?.data;
       throw new Error(
         `Failed to send message: ${
-          error.response?.data || error.message || 'Unknown error'
-        }`
+          responseData || error.message || 'Unknown error'
+        }`,
       );
     }
   }
