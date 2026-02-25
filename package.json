@@ -30,7 +30,7 @@
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.2.1",
     "react-hot-toast": "^2.6.0",
-    "react-quill": "^2.0.0",
+    "react-quill-new": "^3.8.3",
     "zustand": "^5.0.9"
   },
   "devDependencies": {

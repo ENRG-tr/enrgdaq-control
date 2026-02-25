@@ -4,11 +4,11 @@ import { useStore } from '@/lib/store';
 import { API, type AggregatedParameter } from '@/lib/api-client';
 import toast from 'react-hot-toast';
 import dynamic from 'next/dynamic';
-import 'react-quill/dist/quill.snow.css';
+import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(
   async () => {
-    const { default: RQ } = await import('react-quill');
+    const { default: RQ } = await import('react-quill-new');
     // Need this wrapper to pass generic props that Quill might complain about or just proxy it
     return function ForwardedQuill(props: any) {
       return <RQ {...props} />;
