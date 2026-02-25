@@ -17,7 +17,7 @@ const RUN_CONTROLLER_RUN_ALIVE_AFTER_MS = 2000;
 export class RunController {
   static async getAllRuns(
     limit: number = 20,
-    offset: number = 0
+    offset: number = 0,
   ): Promise<{ runs: Run[]; total: number; activeRun: Run | null }> {
     // Check liveness of any locally RUNNING run before returning
     const activeRun = await this.getActiveRun(); // This triggers the check
@@ -47,7 +47,7 @@ export class RunController {
       // Check if scheduled end time has passed
       if (run.scheduledEndTime && new Date() >= run.scheduledEndTime) {
         console.log(
-          `Run ${run.id} reached scheduled end time. Automatically stopping.`
+          `Run ${run.id} reached scheduled end time. Automatically stopping.`,
         );
         if (run.clientId) {
           try {
@@ -75,8 +75,16 @@ export class RunController {
           status?.daq_jobs.map((job: any) => job.unique_id) || [];
 
         let expectedJobIds: string[] = [];
-        if (run.daqJobIds && Array.isArray(run.daqJobIds)) {
-          expectedJobIds = run.daqJobIds as string[];
+        if (run.daqJobIds) {
+          if (Array.isArray(run.daqJobIds)) {
+            expectedJobIds = run.daqJobIds as string[];
+          } else if (typeof run.daqJobIds === 'string') {
+            try {
+              expectedJobIds = JSON.parse(run.daqJobIds) as string[];
+            } catch (e) {
+              console.error('Failed to parse expectedJobIds:', e);
+            }
+          }
         }
 
         // Check if ALL expected jobs are active
@@ -91,7 +99,7 @@ export class RunController {
         ) {
           // Run is effectively done (or crashed)
           console.log(
-            `Run ${run.id} jobs are no longer active. Marking as COMPLETED. ${expectedJobIds} vs ${activeJobIds}`
+            `Run ${run.id} jobs are no longer active. Marking as COMPLETED. ${expectedJobIds} vs ${activeJobIds}`,
           );
           await db
             .update(runs)
@@ -112,7 +120,7 @@ export class RunController {
     clientId: string,
     runTypeId: number,
     parameterValues?: Record<string, string>,
-    scheduledEndTime?: Date
+    scheduledEndTime?: Date,
   ): Promise<Run> {
     console.log('[startRun] Starting run process...');
 
@@ -139,13 +147,13 @@ export class RunController {
       const runConfigs = await this.generateRunConfigs(
         run.id,
         runTypeId,
-        parameterValues
+        parameterValues,
       );
       console.log(`[startRun] Generated ${runConfigs.length} configs.`);
 
       if (runConfigs.length === 0) {
         throw new Error(
-          `No templates with type="run" found for RunType: ${runTypeId}`
+          `No templates with type="run" found for RunType: ${runTypeId}`,
         );
       }
 
@@ -154,7 +162,7 @@ export class RunController {
       const { jobNames, fullConfigs } = await this.startDAQJobs(
         clientId,
         runConfigs,
-        runToken
+        runToken,
       );
 
       // 5. Verify all jobs are running
@@ -179,7 +187,7 @@ export class RunController {
         run.id,
         clientId,
         runTypeId,
-        parameterValues || {}
+        parameterValues || {},
       ).catch((e) => console.error('Failed to send run messages:', e));
 
       return {
@@ -214,7 +222,7 @@ export class RunController {
   private static prepareJobConfig(
     templateName: string,
     config: string,
-    runToken: string
+    runToken: string,
   ): { uniqueJobName: string; fullConfig: string } {
     const uniqueJobName = `${templateName}_${runToken}_${
       crypto.randomUUID().split('-')[0]
@@ -234,13 +242,13 @@ export class RunController {
       config: string;
       restartOnCrash: boolean;
     }>,
-    runToken: string
+    runToken: string,
   ): Promise<{ jobNames: string[]; fullConfigs: string[] }> {
     const jobNames: string[] = [];
     const fullConfigs: string[] = [];
 
     console.log(
-      `[startRun] Starting ${runConfigs.length} jobs with token ${runToken}...`
+      `[startRun] Starting ${runConfigs.length} jobs with token ${runToken}...`,
     );
 
     try {
@@ -248,11 +256,11 @@ export class RunController {
         const { uniqueJobName, fullConfig } = this.prepareJobConfig(
           rc.name,
           rc.config,
-          runToken
+          runToken,
         );
 
         console.log(
-          `[startRun] Starting job: ${uniqueJobName} (restartOnCrash: ${rc.restartOnCrash})`
+          `[startRun] Starting job: ${uniqueJobName} (restartOnCrash: ${rc.restartOnCrash})`,
         );
         await ENRGDAQClient.runJob(clientId, fullConfig, rc.restartOnCrash);
         console.log(`[startRun] Job started: ${uniqueJobName}`);
@@ -268,7 +276,7 @@ export class RunController {
       throw new Error(
         `Failed to start DAQ jobs: ${
           e instanceof Error ? e.message : 'Unknown error'
-        }`
+        }`,
       );
     }
 
@@ -282,14 +290,14 @@ export class RunController {
    */
   private static async verifyDAQJobs(
     clientId: string,
-    jobNames: string[]
+    jobNames: string[],
   ): Promise<void> {
     const VERIFICATION_DELAY_MS = 2000;
     const VERIFICATION_RETRIES = 3;
     const RETRY_DELAY_MS = 1000;
 
     console.log(
-      `[startRun] Waiting ${VERIFICATION_DELAY_MS}ms before verification...`
+      `[startRun] Waiting ${VERIFICATION_DELAY_MS}ms before verification...`,
     );
     await new Promise((resolve) => setTimeout(resolve, VERIFICATION_DELAY_MS));
 
@@ -309,7 +317,7 @@ export class RunController {
 
         console.warn(
           `Job verification attempt ${attempt + 1}/${VERIFICATION_RETRIES}: ` +
-            `${failedJobs.length} jobs not yet active`
+            `${failedJobs.length} jobs not yet active`,
         );
 
         if (attempt < VERIFICATION_RETRIES - 1) {
@@ -318,7 +326,7 @@ export class RunController {
       } catch (e) {
         console.error(
           `Failed to verify job status (attempt ${attempt + 1}):`,
-          e
+          e,
         );
         if (attempt < VERIFICATION_RETRIES - 1) {
           await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
@@ -328,14 +336,14 @@ export class RunController {
 
     // Verification failed after all retries
     console.error(
-      `Job verification failed. Failed jobs: ${failedJobs.join(', ')}`
+      `Job verification failed. Failed jobs: ${failedJobs.join(', ')}`,
     );
     await this.cleanupJobs(clientId, jobNames);
     throw new Error(
       `DAQ jobs failed to start properly. Failed jobs: ${failedJobs.join(
-        ', '
+        ', ',
       )}. ` +
-        `Jobs have been terminated. Please check your configuration and try again.`
+        `Jobs have been terminated. Please check your configuration and try again.`,
     );
   }
 
@@ -344,12 +352,12 @@ export class RunController {
    */
   private static findFailedJobs(
     expectedJobIds: string[],
-    activeJobs: Array<{ unique_id: string; is_alive?: boolean }>
+    activeJobs: Array<{ unique_id: string; is_alive?: boolean }>,
   ): string[] {
     const failedJobs: string[] = [];
     for (const expectedJobId of expectedJobIds) {
       const activeJob = activeJobs.find(
-        (job) => job.unique_id === expectedJobId
+        (job) => job.unique_id === expectedJobId,
       );
       if (!activeJob || activeJob.is_alive === false) {
         failedJobs.push(expectedJobId);
@@ -364,7 +372,7 @@ export class RunController {
   private static async storeRunParameterValues(
     runId: number,
     runTypeId: number,
-    parameterValues?: Record<string, string>
+    parameterValues?: Record<string, string>,
   ): Promise<void> {
     if (!parameterValues || Object.keys(parameterValues).length === 0) {
       return;
@@ -381,7 +389,7 @@ export class RunController {
       .from(templateParameters)
       .innerJoin(
         templateRunTypes,
-        eq(templateParameters.templateId, templateRunTypes.templateId)
+        eq(templateParameters.templateId, templateRunTypes.templateId),
       )
       .where(eq(templateRunTypes.runTypeId, runTypeId));
 
@@ -421,16 +429,16 @@ export class RunController {
    */
   private static async cleanupJobs(
     clientId: string,
-    jobNames: string[]
+    jobNames: string[],
   ): Promise<void> {
     console.log(`Cleaning up ${jobNames.length} jobs after startup failure...`);
     try {
       await Promise.all(
         jobNames.map((name) =>
           ENRGDAQClient.stopJob(clientId, name, true).catch((e) =>
-            console.error(`Failed to cleanup job ${name}:`, e)
-          )
-        )
+            console.error(`Failed to cleanup job ${name}:`, e),
+          ),
+        ),
       );
     } catch (cleanupErr) {
       console.error('Failed to cleanup started jobs:', cleanupErr);
@@ -450,8 +458,16 @@ export class RunController {
     let jobNames: string[] = [];
 
     // Use JSON column if available
-    if (run.daqJobIds && Array.isArray(run.daqJobIds)) {
-      jobNames = run.daqJobIds as string[];
+    if (run.daqJobIds) {
+      if (Array.isArray(run.daqJobIds)) {
+        jobNames = run.daqJobIds as string[];
+      } else if (typeof run.daqJobIds === 'string') {
+        try {
+          jobNames = JSON.parse(run.daqJobIds) as string[];
+        } catch (e) {
+          console.error('Failed to parse daqJobIds in stopRun:', e);
+        }
+      }
     }
 
     if (jobNames.length > 0) {
@@ -459,9 +475,9 @@ export class RunController {
         await Promise.all(
           jobNames.map((name) =>
             ENRGDAQClient.stopJob(clientId, name, true).catch((e) =>
-              console.error(`Failed to stop job ${name}`, e)
-            )
-          )
+              console.error(`Failed to stop job ${name}`, e),
+            ),
+          ),
         );
       } catch (e) {
         console.error('Failed to stop jobs', e);
@@ -478,7 +494,7 @@ export class RunController {
   private static async generateRunConfigs(
     runId: number,
     runTypeId: number,
-    parameterValues?: Record<string, string>
+    parameterValues?: Record<string, string>,
   ): Promise<Array<{ name: string; config: string; restartOnCrash: boolean }>> {
     const rows = await db
       .select({
@@ -489,13 +505,13 @@ export class RunController {
       .from(templates)
       .innerJoin(
         templateRunTypes,
-        eq(templates.id, templateRunTypes.templateId)
+        eq(templates.id, templateRunTypes.templateId),
       )
       .where(
         and(
           eq(templateRunTypes.runTypeId, runTypeId),
-          eq(templates.type, 'run')
-        )
+          eq(templates.type, 'run'),
+        ),
       );
 
     return rows.map((t) => {
@@ -507,7 +523,7 @@ export class RunController {
         for (const [paramName, value] of Object.entries(parameterValues)) {
           const placeholder = new RegExp(
             `\\{${paramName.toUpperCase()}\\}`,
-            'g'
+            'g',
           );
           config = config.replace(placeholder, value);
         }
@@ -522,7 +538,7 @@ export class RunController {
   }
 
   static async getRunParameterValues(
-    runId: number
+    runId: number,
   ): Promise<Array<{ name: string; displayName: string; value: string }>> {
     const values = await db
       .select({
@@ -533,7 +549,7 @@ export class RunController {
       .from(runParameterValues)
       .innerJoin(
         templateParameters,
-        eq(runParameterValues.parameterId, templateParameters.id)
+        eq(runParameterValues.parameterId, templateParameters.id),
       )
       .where(eq(runParameterValues.runId, runId));
 
@@ -548,13 +564,13 @@ export class RunController {
     runId: number,
     clientId: string,
     runTypeId: number,
-    parameterValues: Record<string, string>
+    parameterValues: Record<string, string>,
   ): Promise<void> {
     await MessageController.sendMessagesForRunType(
       runTypeId,
       runId,
       clientId,
-      parameterValues
+      parameterValues,
     );
   }
 }
