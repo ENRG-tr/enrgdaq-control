@@ -11,6 +11,13 @@ export interface LogEntry {
   req_id: string | null;
 }
 
+export interface AuthUserInfo {
+  id: number;
+  email: string;
+  name: string;
+  roles: string[];
+}
+
 export interface Template {
   id: number;
   name: string;
@@ -77,7 +84,10 @@ const api = axios.create({
 });
 
 export const API = {
-  async getAuthStatus(): Promise<{ isAdmin: boolean }> {
+  async getAuthStatus(): Promise<{
+    isAdmin: boolean;
+    userInfo: AuthUserInfo | null;
+  }> {
     const { data } = await api.get('/auth/status');
     return data;
   },

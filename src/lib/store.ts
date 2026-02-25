@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { API, type RunType } from './api-client';
+import { API, type RunType, type AuthUserInfo } from './api-client';
 import type { Run, ClientStatus, LogEntry, Client } from './types';
 
 interface AppState {
@@ -10,6 +10,7 @@ interface AppState {
   clientOnline: boolean;
   logs: LogEntry[];
   isAdmin: boolean;
+  userInfo: AuthUserInfo | null;
 
   // Run State
   runs: Run[];
@@ -45,6 +46,7 @@ export const useStore = create<AppState>((set, get) => ({
   clientOnline: false,
   logs: [],
   isAdmin: false,
+  userInfo: null,
 
   runs: [],
   runsTotal: 0,
@@ -91,11 +93,11 @@ export const useStore = create<AppState>((set, get) => ({
 
   checkAuthStatus: async () => {
     try {
-      const { isAdmin } = await API.getAuthStatus();
-      set({ isAdmin });
+      const { isAdmin, userInfo } = await API.getAuthStatus();
+      set({ isAdmin, userInfo });
     } catch (e) {
       console.error('Failed to fetch auth status', e);
-      set({ isAdmin: false });
+      set({ isAdmin: false, userInfo: null });
     }
   },
 

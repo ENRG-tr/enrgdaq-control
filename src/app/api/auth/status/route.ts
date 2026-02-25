@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const headersList = await headers();
-  const isAdmin = checkAdminAccess(headersList);
+  const authSession = await checkAdminAccess(headersList);
 
-  return NextResponse.json({ isAdmin });
+  return NextResponse.json(authSession);
 }
