@@ -9,6 +9,7 @@ export interface Run {
   config: string | null;
   clientId: string | null;
   runTypeId: number | null;
+  hasMetadata?: boolean;
 }
 
 export interface DAQJobInfo {

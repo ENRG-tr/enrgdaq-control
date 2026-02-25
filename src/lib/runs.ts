@@ -9,7 +9,7 @@ import {
   runMetadata,
   type Run,
 } from './schema';
-import { eq, desc, and, count } from 'drizzle-orm';
+import { eq, desc, and, count, inArray } from 'drizzle-orm';
 import { ENRGDAQClient } from './enrgdaq-client';
 import { MessageController } from './messages';
 
@@ -37,7 +37,29 @@ export class RunController {
       .limit(limit)
       .offset(offset);
 
-    return { runs: data, total, activeRun };
+    const runIds = data.map((r) => r.id);
+    let metadataMap = new Map<number, boolean>();
+
+    if (runIds.length > 0) {
+      const metadataRecords = await db
+        .select({ runId: runMetadata.runId, details: runMetadata.details })
+        .from(runMetadata)
+        .where(inArray(runMetadata.runId, runIds));
+
+      metadataMap = new Map(
+        metadataRecords.map((m) => [
+          m.runId,
+          !!m.details && m.details.trim() !== '' && m.details !== '<p><br></p>',
+        ]),
+      );
+    }
+
+    const runsWithMetadata = data.map((r) => ({
+      ...r,
+      hasMetadata: metadataMap.get(r.id) || false,
+    }));
+
+    return { runs: runsWithMetadata, total, activeRun };
   }
 
   static async getActiveRun(): Promise<Run | null> {
