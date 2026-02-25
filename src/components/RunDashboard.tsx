@@ -3,6 +3,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import { API, type AggregatedParameter } from '@/lib/api-client';
 import toast from 'react-hot-toast';
+import dynamic from 'next/dynamic';
+import 'react-quill/dist/quill.snow.css';
+
+const ReactQuill = dynamic(
+  async () => {
+    const { default: RQ } = await import('react-quill');
+    // Need this wrapper to pass generic props that Quill might complain about or just proxy it
+    return function ForwardedQuill(props: any) {
+      return <RQ {...props} />;
+    };
+  },
+  { ssr: false },
+);
 
 type TimerMode = 'none' | 'duration' | 'datetime';
 
@@ -47,6 +60,15 @@ const RunDashboard = () => {
 
   // Live countdown state
   const [countdown, setCountdown] = useState<string | null>(null);
+
+  // Metadata edit modal
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingRunId, setEditingRunId] = useState<number | null>(null);
+  const [editDetails, setEditDetails] = useState('');
+  const [lastUpdatedBy, setLastUpdatedBy] = useState('');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState('');
+  const [isSavingMetadata, setIsSavingMetadata] = useState(false);
+  const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
 
   // Calculate scheduled end time based on timer mode
   const calculateScheduledEndTime = useCallback((): Date | null => {
@@ -261,6 +283,68 @@ const RunDashboard = () => {
       toast.error(
         'Failed to delete run: ' + (error.message || 'Unknown error'),
       );
+    }
+  };
+
+  const handleOpenEditModal = async (runId: number) => {
+    setEditingRunId(runId);
+    setEditDetails('');
+    setLastUpdatedBy('');
+    setLastUpdatedAt('');
+    setEditModalOpen(true);
+    setIsLoadingMetadata(true);
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/runs/${runId}/metadata`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setEditDetails(data.details || '');
+          setLastUpdatedBy(data.updatedBy || '');
+          setLastUpdatedAt(
+            data.updatedAt ? new Date(data.updatedAt).toLocaleString() : '',
+          );
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch run metadata:', e);
+      toast.error('Failed to load run metadata');
+    } finally {
+      setIsLoadingMetadata(false);
+    }
+  };
+
+  const handleSaveMetadata = async () => {
+    if (!editingRunId) return;
+    setIsSavingMetadata(true);
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/runs/${editingRunId}/metadata`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ details: editDetails }),
+        },
+      );
+      if (res.ok) {
+        toast.success(`Run #${editingRunId} metadata updated`);
+        setEditModalOpen(false);
+        const data = await res.json();
+        setLastUpdatedBy(data.updatedBy || '');
+        setLastUpdatedAt(
+          data.updatedAt ? new Date(data.updatedAt).toLocaleString() : '',
+        );
+      } else {
+        const err = await res.json();
+        toast.error('Failed to save metadata: ' + err.error);
+      }
+    } catch (e) {
+      console.error('Failed to save run metadata:', e);
+      toast.error('Failed to save metadata');
+    } finally {
+      setIsSavingMetadata(false);
     }
   };
 
@@ -703,7 +787,7 @@ const RunDashboard = () => {
                 <th>Start Time</th>
                 <th>End Time / Duration</th>
                 <th>Status</th>
-                {isAdmin && <th className="pe-4 text-end">Actions</th>}
+                <th className="pe-4 text-end">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -743,8 +827,15 @@ const RunDashboard = () => {
                       {run.status}
                     </span>
                   </td>
-                  {isAdmin && (
-                    <td className="pe-4 text-end">
+                  <td className="pe-4 text-end">
+                    <button
+                      className="btn btn-sm btn-outline-info me-2"
+                      onClick={() => handleOpenEditModal(run.id)}
+                      title="Edit Run Notes"
+                    >
+                      <i className="fa-solid fa-pen"></i>
+                    </button>
+                    {isAdmin && (
                       <button
                         className="btn btn-sm btn-outline-danger"
                         onClick={() => handleDelete(run.id, run.status)}
@@ -753,8 +844,8 @@ const RunDashboard = () => {
                       >
                         <i className="fa-solid fa-trash"></i>
                       </button>
-                    </td>
-                  )}
+                    )}
+                  </td>
                 </tr>
               ))}
               {runs.length === 0 && (
@@ -791,6 +882,95 @@ const RunDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Edit Metadata Modal */}
+      {editModalOpen && (
+        <div
+          className="modal d-block"
+          style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1050 }}
+        >
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content bg-dark border-secondary">
+              <div className="modal-header border-secondary">
+                <h5 className="modal-title text-light">
+                  <i className="fa-solid fa-pen-to-square me-2 text-info"></i>
+                  Run Metadata: #{editingRunId}
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => setEditModalOpen(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {isLoadingMetadata ? (
+                  <div className="text-center py-5 text-muted">
+                    <span className="spinner-border spinner-border-sm me-2"></span>
+                    Loading details...
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className="bg-white text-dark rounded"
+                      style={{ paddingBottom: '42px', minHeight: '300px' }}
+                    >
+                      <ReactQuill
+                        theme="snow"
+                        value={editDetails}
+                        onChange={setEditDetails}
+                        style={{ height: '250px' }}
+                      />
+                    </div>
+                    <div className="text-muted small mt-3 px-1 d-flex flex-wrap align-items-center">
+                      <i className="fa-solid fa-clock-rotate-left me-2"></i>
+                      {lastUpdatedBy ? (
+                        <span>
+                          Last updated by{' '}
+                          <strong className="text-light">
+                            {lastUpdatedBy}
+                          </strong>{' '}
+                          at{' '}
+                          <strong className="text-light">
+                            {lastUpdatedAt}
+                          </strong>
+                        </span>
+                      ) : (
+                        <span>No updates recorded yet.</span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="modal-footer border-secondary">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => setEditModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-info"
+                  onClick={handleSaveMetadata}
+                  disabled={isSavingMetadata || isLoadingMetadata}
+                >
+                  {isSavingMetadata ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-save me-2"></i>Save Notes
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

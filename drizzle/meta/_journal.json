@@ -36,6 +36,20 @@
       "when": 1772010858797,
       "tag": "0004_early_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772024140713,
+      "tag": "0005_cultured_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772024578996,
+      "tag": "0006_watery_ogun",
+      "breakpoints": true
     }
   ]
 }

@@ -6,6 +6,7 @@ import {
   templateParameters,
   runTypeParameterDefaults,
   runParameterValues,
+  runMetadata,
   type Run,
 } from './schema';
 import { eq, desc, and, count } from 'drizzle-orm';
@@ -125,6 +126,7 @@ export class RunController {
     runTypeId: number,
     parameterValues?: Record<string, string>,
     scheduledEndTime?: Date,
+    userId?: number | null,
   ): Promise<Run> {
     console.log('[startRun] Starting run process...');
 
@@ -146,6 +148,13 @@ export class RunController {
     console.log(`[startRun] Created run with ID: ${run.id}`);
 
     try {
+      if (userId) {
+        await db.insert(runMetadata).values({
+          runId: run.id,
+          userId: userId,
+        });
+      }
+
       // 3. Generate configs with real run ID
       console.log('[startRun] Generating configs from templates...');
       const runConfigs = await this.generateRunConfigs(

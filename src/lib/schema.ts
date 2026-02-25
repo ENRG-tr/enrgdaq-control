@@ -23,6 +23,19 @@ export const runs = pgTable('runs', {
   isDeleted: boolean('is_deleted').notNull().default(false),
 });
 
+// Run Metadata table - stores additional info about runs like notes/details and user ID
+export const runMetadata = pgTable('run_metadata', {
+  id: serial('id').primaryKey(),
+  runId: integer('run_id')
+    .references(() => runs.id)
+    .notNull()
+    .unique(),
+  userId: integer('user_id'), // User who started or owns the run
+  details: text('details'), // WYSIWYG notes or details
+  updatedBy: text('updated_by'), // Name of the user who last updated this
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
 // Run Types table - Defines types/modes of runs (e.g. Calibration, Physics)
 export const runTypes = pgTable('run_types', {
   id: serial('id').primaryKey(),
@@ -155,3 +168,5 @@ export type NewMessage = typeof messages.$inferInsert;
 export type MessageParameterValue = typeof messageParameterValues.$inferSelect;
 export type NewMessageParameterValue =
   typeof messageParameterValues.$inferInsert;
+export type RunMetadata = typeof runMetadata.$inferSelect;
+export type NewRunMetadata = typeof runMetadata.$inferInsert;

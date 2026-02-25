@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { RunController } from '@/lib/runs';
+import { checkAdminAccess } from '@/lib/auth';
 
 export async function GET(req: Request) {
   try {
@@ -19,6 +21,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   console.log('[API /runs POST] Received request');
   try {
+    const headersList = await headers();
+    const authSession = await checkAdminAccess(headersList);
+    const userId = authSession?.userInfo?.id || null;
+
     const body = await req.json();
     const {
       description,
@@ -28,13 +34,13 @@ export async function POST(req: Request) {
       scheduledEndTime,
     } = body;
     console.log(
-      `[API /runs POST] Starting run for client ${clientId}, runTypeId ${runTypeId}`
+      `[API /runs POST] Starting run for client ${clientId}, runTypeId ${runTypeId}, user ${userId}`,
     );
 
     if (!description || !clientId) {
       return NextResponse.json(
         { error: 'Missing description or clientId' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -48,7 +54,8 @@ export async function POST(req: Request) {
       clientId,
       runTypeId,
       parameterValues,
-      parsedScheduledEndTime
+      parsedScheduledEndTime,
+      userId,
     );
     console.log(`[API /runs POST] Run started successfully: ${run.id}`);
     return NextResponse.json(run);
