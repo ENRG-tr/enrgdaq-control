@@ -178,7 +178,7 @@ export const API = {
   },
 
   async deleteRun(runId: number): Promise<void> {
-    await api.delete(`/runs/${runId}`);
+    await api.post(`/runs/${runId}/delete`);
   },
 
   // Templates
