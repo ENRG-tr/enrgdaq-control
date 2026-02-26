@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { webhooks } from '@/lib/schema';
-import { checkAdminAccess } from '@/lib/auth';
+import { checkAuthSession } from '@/lib/auth';
 import { eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
 
@@ -21,8 +21,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const headersList = await headers();
-    const isAdmin = await checkAdminAccess(headersList);
-    if (!isAdmin) {
+    const authSession = await checkAuthSession(headersList);
+    if (!authSession.isAdmin) {
       return NextResponse.json(
         { error: 'Unauthorized: Admin access required' },
         { status: 403 },

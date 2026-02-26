@@ -1,29 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { checkAdminAccess } from '@/lib/auth';
+import { checkAuthSession } from '@/lib/auth';
 
-export function middleware(request: NextRequest) {
-  const hasAuth = checkAdminAccess(request.headers);
+export async function middleware(request: NextRequest) {
+  const authSession = await checkAuthSession(request.headers);
 
-  if (!hasAuth) {
-    const { pathname } = request.nextUrl;
-
-    // 1. Block API routes for modification (POST, PUT, DELETE, etc.)
-    // Allow GET requests so that Dashboard can list types/templates
-    if (pathname.startsWith('/api/')) {
-      if (request.method !== 'GET') {
-        return NextResponse.json(
-          { error: 'Unauthorized: Missing or invalid X-Admin-Access header' },
-          { status: 403 }
-        );
-      }
-      // Allow GET even without auth
-      return NextResponse.next();
-    }
-
-    // 2. Block Page routes completely (redirect to home)
-    // This covers /advanced, /templates, /run-types based on config matcher
-    return NextResponse.redirect(new URL('/', request.url));
+  if (!authSession.isAdmin && !authSession.userInfo) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   return NextResponse.next();

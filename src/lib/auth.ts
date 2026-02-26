@@ -1,10 +1,5 @@
 /**
  * Admin access is determined by the X-Admin-Access header.
- *
- * SECURITY NOTE: This header is set by Caddy (reverse proxy) based on
- * IP allowlist or client certificate validation. Caddy strips/overwrites
- * any client-provided X-Admin-Access header, so by the time the request
- * reaches Next.js, this header is trustworthy and cannot be spoofed.
  */
 
 import * as jose from 'jose';
@@ -25,7 +20,14 @@ export interface AuthSession {
   userInfo: UserInfo | null;
 }
 
-export async function checkAdminAccess(
+const DEV_USER_INFO: UserInfo = {
+  id: 1,
+  email: 'dev@dev.com',
+  name: 'dev',
+  roles: ['enrgdaq-control', 'enrgdaq-control-superadmin'],
+};
+
+export async function checkAuthSession(
   headers: HeaderLike,
 ): Promise<AuthSession> {
   const isDev = process.env.NODE_ENV === 'development';
@@ -41,12 +43,28 @@ export async function checkAdminAccess(
     );
     const { payload } = await jose.jwtVerify(token, secret);
 
+    const userInfo = (payload.user_info as UserInfo) || null;
+
+    // If userInfo is null or has no enrgdaq-control role, reject unless in development
+    if (
+      !userInfo ||
+      !Array.isArray(userInfo.roles) ||
+      !userInfo.roles.includes('enrgdaq-control')
+    ) {
+      return { isAdmin: isDev, userInfo: isDev ? DEV_USER_INFO : null };
+    }
+
+    const isAdmin =
+      Array.isArray(userInfo.roles) &&
+      userInfo.roles.includes('enrgdaq-control-superadmin');
+
     return {
-      isAdmin: Boolean(payload.admin),
-      userInfo: (payload.user_info as UserInfo) || null,
+      isAdmin,
+      userInfo,
     };
   } catch (error) {
     console.error('Failed to verify X-Admin-Access JWT:', error);
-    return { isAdmin: true, userInfo: null };
+    // Invalid token: reject unless in development
+    return { isAdmin: isDev, userInfo: isDev ? DEV_USER_INFO : null };
   }
 }

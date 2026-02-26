@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { RunController } from '@/lib/runs';
-import { checkAdminAccess } from '@/lib/auth';
+import { checkAuthSession } from '@/lib/auth';
+import { headers } from 'next/headers';
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    if (!checkAdminAccess(req.headers)) {
+    const headersList = await headers();
+    const authSession = await checkAuthSession(headersList);
+    if (!authSession.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

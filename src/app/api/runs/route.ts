@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { RunController } from '@/lib/runs';
-import { checkAdminAccess } from '@/lib/auth';
+import { checkAuthSession } from '@/lib/auth';
 
 export async function GET(req: Request) {
   try {
@@ -22,7 +22,13 @@ export async function POST(req: Request) {
   console.log('[API /runs POST] Received request');
   try {
     const headersList = await headers();
-    const authSession = await checkAdminAccess(headersList);
+    const authSession = await checkAuthSession(headersList);
+    if (!authSession.isAdmin) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin access required' },
+        { status: 403 },
+      );
+    }
     const userId = authSession?.userInfo?.id || null;
 
     const body = await req.json();

@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { runMetadata } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { headers } from 'next/headers';
-import { checkAdminAccess } from '@/lib/auth';
+import { checkAuthSession } from '@/lib/auth';
 
 export async function GET(
   req: Request,
@@ -38,7 +38,14 @@ export async function POST(
     const { details } = body;
 
     const headersList = await headers();
-    const authSession = await checkAdminAccess(headersList);
+    const authSession = await checkAuthSession(headersList);
+
+    if (!authSession.isAdmin) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin access required' },
+        { status: 403 },
+      );
+    }
 
     const updatedBy =
       authSession?.userInfo?.name ||
