@@ -191,6 +191,16 @@ export const API = {
     await api.post(`/runs/${runId}/delete`);
   },
 
+  async getRunMetadata(runId: number): Promise<any> {
+    const { data } = await api.get(`/runs/${runId}/metadata`);
+    return data;
+  },
+
+  async updateRunMetadata(runId: number, details: string): Promise<any> {
+    const { data } = await api.post(`/runs/${runId}/metadata`, { details });
+    return data;
+  },
+
   // Templates
   async getTemplates(): Promise<Template[]> {
     const { data } = await api.get('/templates');

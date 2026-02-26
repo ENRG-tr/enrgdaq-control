@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { type Run } from '@/lib/types';
 import { useStore } from '@/lib/store';
 import { formatDate } from '@/lib/date-utils';
+import { API } from '@/lib/api-client';
 import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(
@@ -56,16 +57,11 @@ export function RunRow({
     setIsLoadingMetadata(true);
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/runs/${run.id}/metadata`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data) {
-          setEditDetails(data.details || '');
-          setLastUpdatedBy(data.updatedBy || '');
-          setLastUpdatedAt(data.updatedAt ? formatDate(data.updatedAt) : '');
-        }
+      const data = await API.getRunMetadata(run.id);
+      if (data) {
+        setEditDetails(data.details || '');
+        setLastUpdatedBy(data.updatedBy || '');
+        setLastUpdatedAt(data.updatedAt ? formatDate(data.updatedAt) : '');
       }
     } catch (e) {
       console.error('Failed to fetch run metadata:', e);
@@ -78,29 +74,17 @@ export function RunRow({
   const handleSaveMetadata = async () => {
     setIsSavingMetadata(true);
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/api/runs/${run.id}/metadata`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ details: editDetails }),
-        },
-      );
-      if (res.ok) {
-        toast.success(`Run #${run.id} metadata updated`);
-        // We sync by refetching runs to update hasMetadata
-        useStore.getState().fetchRuns();
-        const data = await res.json();
-        setLastUpdatedBy(data.updatedBy || '');
-        setLastUpdatedAt(data.updatedAt ? formatDate(data.updatedAt) : '');
-        setIsEditingMetadata(false);
-      } else {
-        const err = await res.json();
-        toast.error('Failed to save metadata: ' + err.error);
-      }
-    } catch (e) {
+      const data = await API.updateRunMetadata(run.id, editDetails);
+      toast.success(`Run #${run.id} metadata updated`);
+      // We sync by refetching runs to update hasMetadata
+      useStore.getState().fetchRuns();
+      setLastUpdatedBy(data.updatedBy || '');
+      setLastUpdatedAt(data.updatedAt ? formatDate(data.updatedAt) : '');
+      setIsEditingMetadata(false);
+    } catch (e: any) {
       console.error('Failed to save run metadata:', e);
-      toast.error('Failed to save metadata');
+      const errorMsg = e?.response?.data?.error || 'Failed to save metadata';
+      toast.error(errorMsg);
     } finally {
       setIsSavingMetadata(false);
     }
