@@ -1,0 +1,61 @@
+import { NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { webhooks } from '@/lib/schema';
+import { eq } from 'drizzle-orm';
+import { checkAdminAccess } from '@/lib/auth';
+import { headers } from 'next/headers';
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const headersList = await headers();
+    const isAdmin = await checkAdminAccess(headersList);
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Admin access required' },
+        { status: 403 },
+      );
+    }
+
+    const { id } = await params;
+    const body = await req.json();
+    const {
+      name,
+      url,
+      secret,
+      isActive,
+      triggerOnRun,
+      triggerOnMessage,
+      payloadTemplate,
+    } = body;
+
+    const [updated] = await db
+      .update(webhooks)
+      .set({
+        name,
+        url,
+        secret: secret || null,
+        isActive,
+        triggerOnRun,
+        triggerOnMessage,
+        payloadTemplate: payloadTemplate || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(webhooks.id, Number(id)))
+      .returning();
+
+    if (!updated) {
+      return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Failed to update webhook:', error);
+    return NextResponse.json(
+      { error: 'Failed to update webhook' },
+      { status: 500 },
+    );
+  }
+}

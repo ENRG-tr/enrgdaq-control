@@ -50,6 +50,20 @@
       "when": 1772024578996,
       "tag": "0006_watery_ogun",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1772032112139,
+      "tag": "0007_rapid_skullbuster",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772033796921,
+      "tag": "0008_old_nightmare",
+      "breakpoints": true
     }
   ]
 }

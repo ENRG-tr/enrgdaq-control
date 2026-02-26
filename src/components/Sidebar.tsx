@@ -95,6 +95,12 @@ export default function Sidebar() {
           label="Run Types"
           isLocked={!isAdmin}
         />
+        <SidebarLink
+          href="/webhooks"
+          icon="fa-satellite-dish"
+          label="Webhooks"
+          isLocked={!isAdmin}
+        />
       </div>
 
       <div className="mt-auto p-3 border-top border-secondary text-muted small">

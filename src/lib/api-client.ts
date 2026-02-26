@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { type Run } from './schema';
+import { type Run, type Webhook } from './schema';
 
 export interface LogEntry {
   type: string;
@@ -346,5 +346,27 @@ export const API = {
   }): Promise<Message> {
     const { data } = await api.post('/messages', params);
     return data;
+  },
+
+  // Webhooks
+  async getWebhooks(): Promise<Webhook[]> {
+    const { data } = await api.get('/webhooks');
+    return data;
+  },
+
+  async createWebhook(
+    webhook: Omit<Webhook, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<Webhook> {
+    const { data } = await api.post('/webhooks', webhook);
+    return data;
+  },
+
+  async updateWebhook(id: number, webhook: Partial<Webhook>): Promise<Webhook> {
+    const { data } = await api.post(`/webhooks/${id}/update`, webhook);
+    return data;
+  },
+
+  async deleteWebhook(id: number): Promise<void> {
+    await api.post(`/webhooks/${id}/delete`);
   },
 };

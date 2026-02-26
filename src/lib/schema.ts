@@ -170,3 +170,20 @@ export type NewMessageParameterValue =
   typeof messageParameterValues.$inferInsert;
 export type RunMetadata = typeof runMetadata.$inferSelect;
 export type NewRunMetadata = typeof runMetadata.$inferInsert;
+
+// Webhooks table - Defines webhooks that fire on run or message creation
+export const webhooks = pgTable('webhooks', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  url: text('url').notNull(),
+  secret: text('secret'), // Optional bearer token or signature secret
+  payloadTemplate: text('payload_template'), // Optional custom JSON template logic
+  isActive: boolean('is_active').notNull().default(true),
+  triggerOnRun: boolean('trigger_on_run').notNull().default(false),
+  triggerOnMessage: boolean('trigger_on_message').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});
+
+export type Webhook = typeof webhooks.$inferSelect;
+export type NewWebhook = typeof webhooks.$inferInsert;

@@ -12,6 +12,7 @@ import {
 import { eq, desc, and, count, inArray } from 'drizzle-orm';
 import { ENRGDAQClient } from './enrgdaq-client';
 import { MessageController } from './messages';
+import { WebhookController } from './webhooks';
 
 const RUN_CONTROLLER_RUN_ALIVE_AFTER_MS = 2000;
 
@@ -224,6 +225,15 @@ export class RunController {
         runTypeId,
         parameterValues || {},
       ).catch((e) => console.error('Failed to send run messages:', e));
+
+      // 9. Dispatch Webhook
+      WebhookController.dispatchRunEvent('run_started', {
+        id: run.id,
+        description,
+        clientId,
+        runTypeId,
+        parameterValues: parameterValues || {},
+      }).catch((e: any) => console.error('Failed to dispatch run webhook:', e));
 
       return {
         ...run,
@@ -524,6 +534,13 @@ export class RunController {
       .update(runs)
       .set({ status: 'COMPLETED', endTime: new Date() })
       .where(eq(runs.id, runId));
+
+    // Dispatch webhook
+    WebhookController.dispatchRunEvent('run_stopped', {
+      id: runId,
+      clientId,
+      jobNames,
+    }).catch((e: any) => console.error('Failed to dispatch run webhook:', e));
   }
 
   static async deleteRun(runId: number): Promise<void> {

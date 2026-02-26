@@ -4,6 +4,7 @@ import { useStore } from '@/lib/store';
 import { API, type AggregatedParameter } from '@/lib/api-client';
 import toast from 'react-hot-toast';
 import { RunRow } from './RunRow';
+import { formatDate } from '@/lib/date-utils';
 
 type TimerMode = 'none' | 'duration' | 'datetime';
 
@@ -353,7 +354,7 @@ const RunDashboard = () => {
                   {activeRun.scheduledEndTime && (
                     <p className="text-muted small mb-0">
                       Scheduled to stop at:{' '}
-                      {new Date(activeRun.scheduledEndTime).toLocaleString()}
+                      {formatDate(activeRun.scheduledEndTime)}
                     </p>
                   )}
                   <div className="mt-4 w-100 px-5">

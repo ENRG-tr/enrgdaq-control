@@ -62,3 +62,5 @@ export interface TemplateUpdateData {
   restartOnCrash?: boolean;
   updatedAt?: Date;
 }
+
+export type { Webhook, NewWebhook } from './schema';

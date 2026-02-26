@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { API, Template, TemplateParameter, Message } from '@/lib/api-client';
 import { useStore } from '@/lib/store';
+import { formatDate } from '@/lib/date-utils';
 import toast from 'react-hot-toast';
 import MessagePayloadForm from '@/components/MessagePayloadForm';
 import type { DAQJobInfo } from '@/lib/types';
@@ -322,7 +323,7 @@ export default function MessagesPage() {
                         )
                       }
                     >
-                      <option value="">-- Select Template --</option>
+                      <option value="">Select Template </option>
                       {templates.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.displayName}
@@ -379,7 +380,7 @@ export default function MessagesPage() {
                                 )
                               }
                             >
-                              <option value="">-- Select --</option>
+                              <option value="">Select </option>
                               <option value="true">True</option>
                               <option value="false">False</option>
                             </select>
@@ -426,7 +427,7 @@ export default function MessagesPage() {
                         setRawPayload('{}');
                       }}
                     >
-                      <option value="">-- Select Message Type --</option>
+                      <option value="">Select Message Type </option>
                       {Object.entries(schemas).map(([key, schema]) => (
                         <option key={key} value={key}>
                           {schema.label} ({key})
@@ -499,7 +500,7 @@ export default function MessagesPage() {
                     value={targetDaqJobType}
                     onChange={(e) => setTargetDaqJobType(e.target.value)}
                   >
-                    <option value="">-- Select Active Job --</option>
+                    <option value="">Select Active Job</option>
                     {activeJobs.map((job: DAQJobInfo) => (
                       <option key={job.unique_id} value={job.daq_job_type}>
                         {job.daq_job_type} ({job.unique_id})
@@ -576,7 +577,7 @@ export default function MessagesPage() {
                         )}
                       </div>
                       <small className="text-muted">
-                        {new Date(msg.sentAt).toLocaleString()}
+                        {formatDate(msg.sentAt)}
                       </small>
                     </div>
                     <div className="mt-2">

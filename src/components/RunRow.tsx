@@ -3,6 +3,7 @@ import dynamic from 'next/dynamic';
 import toast from 'react-hot-toast';
 import { type Run } from '@/lib/types';
 import { useStore } from '@/lib/store';
+import { formatDate } from '@/lib/date-utils';
 import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(
@@ -63,9 +64,7 @@ export function RunRow({
         if (data) {
           setEditDetails(data.details || '');
           setLastUpdatedBy(data.updatedBy || '');
-          setLastUpdatedAt(
-            data.updatedAt ? new Date(data.updatedAt).toLocaleString() : '',
-          );
+          setLastUpdatedAt(data.updatedAt ? formatDate(data.updatedAt) : '');
         }
       }
     } catch (e) {
@@ -93,9 +92,7 @@ export function RunRow({
         useStore.getState().fetchRuns();
         const data = await res.json();
         setLastUpdatedBy(data.updatedBy || '');
-        setLastUpdatedAt(
-          data.updatedAt ? new Date(data.updatedAt).toLocaleString() : '',
-        );
+        setLastUpdatedAt(data.updatedAt ? formatDate(data.updatedAt) : '');
         setIsEditingMetadata(false);
       } else {
         const err = await res.json();
@@ -121,11 +118,9 @@ export function RunRow({
           )}
         </td>
         <td>{run.description}</td>
-        <td>{new Date(run.startTime).toLocaleString()}</td>
+        <td>{formatDate(run.startTime)}</td>
         <td>
-          <div>
-            {run.endTime ? new Date(run.endTime).toLocaleString() : '-'}
-          </div>
+          <div>{run.endTime ? formatDate(run.endTime) : '-'}</div>
           <small className="text-muted">{duration}</small>
         </td>
         <td>

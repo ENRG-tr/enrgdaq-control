@@ -10,6 +10,7 @@ import {
 } from './schema';
 import { eq, desc, count, and } from 'drizzle-orm';
 import { ENRGDAQClient } from './enrgdaq-client';
+import { WebhookController } from './webhooks';
 
 export class MessageController {
   /**
@@ -17,7 +18,7 @@ export class MessageController {
    */
   static async getAllMessages(
     limit: number = 20,
-    offset: number = 0
+    offset: number = 0,
   ): Promise<{ messages: Message[]; total: number }> {
     const [totalResult] = await db.select({ count: count() }).from(messages);
     const total = totalResult?.count || 0;
@@ -47,7 +48,7 @@ export class MessageController {
    * Get parameters for a message template
    */
   static async getTemplateParameters(
-    templateId: number
+    templateId: number,
   ): Promise<TemplateParameter[]> {
     return db
       .select()
@@ -66,7 +67,7 @@ export class MessageController {
       type?: string;
       defaultValue?: string;
       required?: boolean;
-    }
+    },
   ): Promise<TemplateParameter> {
     const [param] = await db
       .insert(templateParameters)
@@ -99,7 +100,7 @@ export class MessageController {
       type?: string;
       defaultValue?: string;
       required?: boolean;
-    }
+    },
   ): Promise<TemplateParameter> {
     const [updated] = await db
       .update(templateParameters)
@@ -121,7 +122,7 @@ export class MessageController {
    */
   static async resolveDaqJobUniqueId(
     clientId: string,
-    targetDaqJobType: string | null
+    targetDaqJobType: string | null,
   ): Promise<string | null> {
     if (!targetDaqJobType) return null; // Broadcast mode
 
@@ -133,7 +134,7 @@ export class MessageController {
       const matchingJob = jobs.find(
         (job: any) =>
           job.daq_job_type === targetDaqJobType ||
-          job.unique_id?.includes(targetDaqJobType)
+          job.unique_id?.includes(targetDaqJobType),
       );
 
       if (matchingJob) {
@@ -142,7 +143,7 @@ export class MessageController {
 
       // If no match found, return null (will broadcast)
       console.warn(
-        `No DAQ job found matching type: ${targetDaqJobType}, broadcasting instead`
+        `No DAQ job found matching type: ${targetDaqJobType}, broadcasting instead`,
       );
       return null;
     } catch (e) {
@@ -156,7 +157,7 @@ export class MessageController {
    */
   static replaceParameters(
     payloadTemplate: string,
-    parameterValues: Record<string, string>
+    parameterValues: Record<string, string>,
   ): string {
     let result = payloadTemplate;
     for (const [name, value] of Object.entries(parameterValues)) {
@@ -174,7 +175,7 @@ export class MessageController {
     clientId: string,
     targetDaqJobType: string | null,
     parameterValues: Record<string, string>,
-    runId?: number | null
+    runId?: number | null,
   ): Promise<Message> {
     // 1. Get the template
     const [template] = await db
@@ -189,7 +190,7 @@ export class MessageController {
 
     if (!template.messageType || !template.payloadTemplate) {
       throw new Error(
-        'Invalid message template: missing messageType or payloadTemplate'
+        'Invalid message template: missing messageType or payloadTemplate',
       );
     }
 
@@ -208,13 +209,13 @@ export class MessageController {
     // 3. Replace parameters in payload
     const payload = this.replaceParameters(
       template.payloadTemplate,
-      parameterValues
+      parameterValues,
     );
 
     // 4. Resolve target DAQ job unique ID
     const targetDaqJobUniqueId = await this.resolveDaqJobUniqueId(
       clientId,
-      targetDaqJobType
+      targetDaqJobType,
     );
 
     // 5. Try to send the message
@@ -226,7 +227,7 @@ export class MessageController {
         clientId,
         template.messageType,
         payload,
-        targetDaqJobUniqueId
+        targetDaqJobUniqueId,
       );
     } catch (e: any) {
       status = 'FAILED';
@@ -266,6 +267,11 @@ export class MessageController {
       await db.insert(messageParameterValues).values(paramInserts);
     }
 
+    const eventType = status === 'FAILED' ? 'message_failed' : 'message_sent';
+    WebhookController.dispatchMessageEvent(eventType, message).catch((e: any) =>
+      console.error('Failed to dispatch message webhook:', e),
+    );
+
     if (status === 'FAILED') {
       throw new Error(errorMessage || 'Failed to send message');
     }
@@ -281,12 +287,12 @@ export class MessageController {
     messageType: string,
     payload: string,
     targetDaqJobType: string | null,
-    runId?: number | null
+    runId?: number | null,
   ): Promise<Message> {
     // Resolve target DAQ job unique ID
     const targetDaqJobUniqueId = await this.resolveDaqJobUniqueId(
       clientId,
-      targetDaqJobType
+      targetDaqJobType,
     );
 
     let status: 'SENT' | 'FAILED' = 'SENT';
@@ -297,7 +303,7 @@ export class MessageController {
         clientId,
         messageType,
         payload,
-        targetDaqJobUniqueId
+        targetDaqJobUniqueId,
       );
     } catch (e: any) {
       status = 'FAILED';
@@ -319,6 +325,11 @@ export class MessageController {
       })
       .returning();
 
+    const eventType = status === 'FAILED' ? 'message_failed' : 'message_sent';
+    WebhookController.dispatchMessageEvent(eventType, message).catch((e: any) =>
+      console.error('Failed to dispatch message webhook:', e),
+    );
+
     if (status === 'FAILED') {
       throw new Error(errorMessage || 'Failed to send message');
     }
@@ -338,7 +349,7 @@ export class MessageController {
     runTypeId: number,
     runId: number,
     clientId: string,
-    parameterValues: Record<string, string>
+    parameterValues: Record<string, string>,
   ): Promise<{ sent: number; failed: number }> {
     // Import dynamically to avoid circular dependency
     const { templateRunTypes } = await import('./schema');
@@ -355,13 +366,13 @@ export class MessageController {
       .from(templates)
       .innerJoin(
         templateRunTypes,
-        eq(templates.id, templateRunTypes.templateId)
+        eq(templates.id, templateRunTypes.templateId),
       )
       .where(
         and(
           eq(templateRunTypes.runTypeId, runTypeId),
-          eq(templates.type, 'message')
-        )
+          eq(templates.type, 'message'),
+        ),
       );
 
     if (messageTemplates.length === 0) {
@@ -369,7 +380,7 @@ export class MessageController {
     }
 
     console.log(
-      `Sending ${messageTemplates.length} message template(s) for run ${runId}`
+      `Sending ${messageTemplates.length} message template(s) for run ${runId}`,
     );
 
     let sent = 0;
@@ -378,7 +389,7 @@ export class MessageController {
     for (const template of messageTemplates) {
       if (!template.messageType || !template.payloadTemplate) {
         console.warn(
-          `Skipping invalid message template ${template.name}: missing messageType or payloadTemplate`
+          `Skipping invalid message template ${template.name}: missing messageType or payloadTemplate`,
         );
         failed++;
         continue;
@@ -395,7 +406,7 @@ export class MessageController {
         if (param.defaultValue) {
           const placeholder = new RegExp(
             `\\{${param.name.toUpperCase()}\\}`,
-            'g'
+            'g',
           );
           payload = payload.replace(placeholder, param.defaultValue);
         }
@@ -404,7 +415,7 @@ export class MessageController {
       // Resolve target DAQ job unique ID
       const targetDaqJobUniqueId = await this.resolveDaqJobUniqueId(
         clientId,
-        template.targetDaqJobType
+        template.targetDaqJobType,
       );
 
       // Send the message
@@ -416,7 +427,7 @@ export class MessageController {
           clientId,
           template.messageType,
           payload,
-          targetDaqJobUniqueId
+          targetDaqJobUniqueId,
         );
         sent++;
       } catch (e: any) {
@@ -462,7 +473,12 @@ export class MessageController {
       console.log(
         `Message ${template.name} ${
           status === 'SENT' ? 'sent' : 'failed'
-        } for run ${runId}`
+        } for run ${runId}`,
+      );
+
+      const eventType = status === 'FAILED' ? 'message_failed' : 'message_sent';
+      WebhookController.dispatchMessageEvent(eventType, message).catch(
+        (e: any) => console.error('Failed to dispatch message webhook:', e),
       );
     }
 
