@@ -26,6 +26,7 @@ const RunDashboard = () => {
     runsLimit,
     setRunsPage,
     isAdmin,
+    canControlRuns,
     checkAuthStatus,
   } = useStore();
 
@@ -401,7 +402,7 @@ const RunDashboard = () => {
                     <button
                       onClick={handleStop}
                       className="btn btn-danger btn-lg w-100 py-3 fw-bold text-uppercase d-flex justify-content-center align-items-center gap-2 shadow-sm hover-shadow"
-                      disabled={isStopping}
+                      disabled={isStopping || !canControlRuns}
                       style={{ letterSpacing: '1px' }}
                     >
                       {isStopping ? (
@@ -453,7 +454,7 @@ const RunDashboard = () => {
                       e.target.value === '' ? '' : Number(e.target.value),
                     )
                   }
-                  disabled={!!activeRun || !clientOnline}
+                  disabled={!!activeRun || !clientOnline || !canControlRuns}
                 >
                   <option value="" disabled>
                     -- Select Run Type --
@@ -479,7 +480,7 @@ const RunDashboard = () => {
                   placeholder="e.g. Cosmic Ray Calibration Run 1"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  disabled={!!activeRun || !clientOnline}
+                  disabled={!!activeRun || !clientOnline || !canControlRuns}
                 />
                 <div className="form-text">
                   This will be stored in the PostgreSQL runs table.
@@ -513,7 +514,9 @@ const RunDashboard = () => {
                           onChange={(e) =>
                             handleParameterChange(param.name, e.target.value)
                           }
-                          disabled={!!activeRun || !clientOnline}
+                          disabled={
+                            !!activeRun || !clientOnline || !canControlRuns
+                          }
                         >
                           <option value="">-- Select --</option>
                           <option value="true">True</option>
@@ -535,7 +538,9 @@ const RunDashboard = () => {
                           onChange={(e) =>
                             handleParameterChange(param.name, e.target.value)
                           }
-                          disabled={!!activeRun || !clientOnline}
+                          disabled={
+                            !!activeRun || !clientOnline || !canControlRuns
+                          }
                         />
                       )}
                       <div className="form-text">
@@ -564,7 +569,7 @@ const RunDashboard = () => {
                         : 'btn-outline-secondary'
                     }`}
                     onClick={() => setTimerMode('none')}
-                    disabled={!!activeRun || !clientOnline}
+                    disabled={!!activeRun || !clientOnline || !canControlRuns}
                   >
                     <i className="fa-solid fa-infinity me-1"></i> No Limit
                   </button>
@@ -576,7 +581,7 @@ const RunDashboard = () => {
                         : 'btn-outline-secondary'
                     }`}
                     onClick={() => setTimerMode('duration')}
-                    disabled={!!activeRun || !clientOnline}
+                    disabled={!!activeRun || !clientOnline || !canControlRuns}
                   >
                     <i className="fa-solid fa-hourglass-half me-1"></i> Duration
                   </button>
@@ -612,7 +617,9 @@ const RunDashboard = () => {
                             Math.max(0, parseInt(e.target.value) || 0),
                           )
                         }
-                        disabled={!!activeRun || !clientOnline}
+                        disabled={
+                          !!activeRun || !clientOnline || !canControlRuns
+                        }
                       />
                     </div>
                     <div className="col-6">
@@ -633,7 +640,9 @@ const RunDashboard = () => {
                             ),
                           )
                         }
-                        disabled={!!activeRun || !clientOnline}
+                        disabled={
+                          !!activeRun || !clientOnline || !canControlRuns
+                        }
                       />
                     </div>
                     <div className="col-12">
@@ -661,7 +670,7 @@ const RunDashboard = () => {
                       className="form-control bg-dark text-light border-secondary"
                       value={scheduledDateTime}
                       onChange={(e) => setScheduledDateTime(e.target.value)}
-                      disabled={!!activeRun || !clientOnline}
+                      disabled={!!activeRun || !clientOnline || !canControlRuns}
                     />
                     <div className="form-text">
                       Run will automatically stop at the specified date and
@@ -701,7 +710,8 @@ const RunDashboard = () => {
                   !clientOnline ||
                   !description ||
                   isStarting ||
-                  !selectedRunTypeId
+                  !selectedRunTypeId ||
+                  !canControlRuns
                 }
                 className="btn btn-primary btn-lg w-100 mt-3"
               >

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { MessageController } from '@/lib/messages';
+import { checkAuthSession, canSendMessages } from '@/lib/auth';
 
 // GET all messages with pagination
 export async function GET(req: Request) {
@@ -19,6 +21,15 @@ export async function GET(req: Request) {
 // POST send a new message
 export async function POST(req: Request) {
   try {
+    const headersList = await headers();
+    const authSession = await checkAuthSession(headersList);
+    if (!canSendMessages(authSession.role)) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Insufficient privileges to send messages' },
+        { status: 403 },
+      );
+    }
+
     const body = await req.json();
     const {
       templateId,
@@ -44,7 +55,7 @@ export async function POST(req: Request) {
         clientId,
         targetDaqJobType || null,
         parameterValues || {},
-        runId
+        runId,
       );
     } else if (messageType && payload) {
       // Send raw message
@@ -53,12 +64,12 @@ export async function POST(req: Request) {
         messageType,
         payload,
         targetDaqJobType || null,
-        runId
+        runId,
       );
     } else {
       return NextResponse.json(
         { error: 'Must provide either templateId or messageType+payload' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

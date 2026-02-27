@@ -85,6 +85,7 @@ const api = axios.create({
 
 export const API = {
   async getAuthStatus(): Promise<{
+    role: 'admin' | 'user' | 'visitor';
     isAdmin: boolean;
     userInfo: AuthUserInfo | null;
   }> {

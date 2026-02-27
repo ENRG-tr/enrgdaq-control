@@ -1,8 +1,22 @@
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { RunController } from '@/lib/runs';
+import { checkAuthSession, canControlRuns } from '@/lib/auth';
 
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
+    const headersList = await headers();
+    const authSession = await checkAuthSession(headersList);
+    if (!canControlRuns(authSession.role)) {
+      return NextResponse.json(
+        { error: 'Unauthorized: Insufficient privileges to stop runs' },
+        { status: 403 },
+      );
+    }
+
     const { id } = await params;
     const body = await req.json();
     const { clientId } = body;

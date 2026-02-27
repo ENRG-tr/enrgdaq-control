@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import { RunController } from '@/lib/runs';
-import { checkAuthSession } from '@/lib/auth';
+import { checkAuthSession, canControlRuns } from '@/lib/auth';
 
 export async function GET(req: Request) {
   try {
@@ -23,9 +23,9 @@ export async function POST(req: Request) {
   try {
     const headersList = await headers();
     const authSession = await checkAuthSession(headersList);
-    if (!authSession.isAdmin) {
+    if (!canControlRuns(authSession.role)) {
       return NextResponse.json(
-        { error: 'Unauthorized: Admin access required' },
+        { error: 'Unauthorized: Insufficient privileges to start runs' },
         { status: 403 },
       );
     }

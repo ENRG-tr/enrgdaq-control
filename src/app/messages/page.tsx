@@ -16,8 +16,15 @@ interface MessageSchema {
 }
 
 export default function MessagesPage() {
-  const { clients, selectedClient, selectClient, clientOnline, clientStatus } =
-    useStore();
+  const {
+    clients,
+    selectedClient,
+    selectClient,
+    clientOnline,
+    clientStatus,
+    canSendMessages,
+    checkAuthStatus,
+  } = useStore();
 
   // Templates
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -61,6 +68,7 @@ export default function MessagesPage() {
     loadTemplates();
     loadSchemas();
     loadMessages();
+    checkAuthStatus();
   }, []);
 
   // Reload messages when page changes
@@ -514,7 +522,7 @@ export default function MessagesPage() {
               <button
                 className="btn btn-primary btn-lg w-100"
                 onClick={handleSend}
-                disabled={isSending || !clientOnline}
+                disabled={isSending || !clientOnline || !canSendMessages}
               >
                 {isSending ? (
                   <>

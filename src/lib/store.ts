@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { API, type RunType, type AuthUserInfo } from './api-client';
 import type { Run, ClientStatus, LogEntry, Client } from './types';
+import type { UserRole } from './auth';
 
 interface AppState {
   // Client State
@@ -10,7 +11,10 @@ interface AppState {
   clientOnline: boolean;
   logs: LogEntry[];
   logsLimit: number;
+  role: UserRole;
   isAdmin: boolean;
+  canControlRuns: boolean;
+  canSendMessages: boolean;
   userInfo: AuthUserInfo | null;
 
   // Run State
@@ -48,7 +52,10 @@ export const useStore = create<AppState>((set, get) => ({
   clientOnline: false,
   logs: [],
   logsLimit: 150,
+  role: 'visitor' as UserRole,
   isAdmin: false,
+  canControlRuns: false,
+  canSendMessages: false,
   userInfo: null,
 
   runs: [],
@@ -101,11 +108,23 @@ export const useStore = create<AppState>((set, get) => ({
 
   checkAuthStatus: async () => {
     try {
-      const { isAdmin, userInfo } = await API.getAuthStatus();
-      set({ isAdmin, userInfo });
+      const { role, userInfo } = await API.getAuthStatus();
+      set({
+        role,
+        isAdmin: role === 'admin',
+        canControlRuns: role === 'admin' || role === 'user',
+        canSendMessages: role === 'admin' || role === 'user',
+        userInfo,
+      });
     } catch (e) {
       console.error('Failed to fetch auth status', e);
-      set({ isAdmin: false, userInfo: null });
+      set({
+        role: 'visitor' as UserRole,
+        isAdmin: false,
+        canControlRuns: false,
+        canSendMessages: false,
+        userInfo: null,
+      });
     }
   },
 

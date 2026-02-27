@@ -1,8 +1,15 @@
 /**
- * Admin access is determined by the X-Admin-Access header.
+ * Role-based access control via the X-Admin-Access JWT header.
+ *
+ * Roles (derived from JWT user_info.roles):
+ *   - 'admin'   : Full access (requires 'enrgdaq-control-superadmin' role)
+ *   - 'user'    : Can view dashboard/messages and start/stop runs, send messages
+ *   - 'visitor' : Read-only access to Run Dashboard and Messages (requires 'enrgdaq-control-visitor' role)
  */
 
 import * as jose from 'jose';
+
+export type UserRole = 'admin' | 'user' | 'visitor';
 
 export interface HeaderLike {
   get(name: string): string | null | undefined;
@@ -16,9 +23,24 @@ export interface UserInfo {
 }
 
 export interface AuthSession {
+  role: UserRole;
   isAdmin: boolean;
   userInfo: UserInfo | null;
 }
+
+// --- Capability helpers ---
+
+/** Can this role start/stop/delete runs? */
+export function canControlRuns(role: UserRole): boolean {
+  return role === 'admin' || role === 'user';
+}
+
+/** Can this role send messages? */
+export function canSendMessages(role: UserRole): boolean {
+  return role === 'admin' || role === 'user';
+}
+
+// --- Internal helpers ---
 
 const DEV_USER_INFO: UserInfo = {
   id: 1,
@@ -27,6 +49,17 @@ const DEV_USER_INFO: UserInfo = {
   roles: ['enrgdaq-control', 'enrgdaq-control-superadmin'],
 };
 
+function resolveRole(userInfo: UserInfo): UserRole {
+  const roles = userInfo.roles;
+  if (roles.includes('enrgdaq-control-superadmin')) return 'admin';
+  if (roles.includes('enrgdaq-control-visitor')) return 'visitor';
+  return 'user';
+}
+
+function makeSession(role: UserRole, userInfo: UserInfo | null): AuthSession {
+  return { role, isAdmin: role === 'admin', userInfo };
+}
+
 export async function checkAuthSession(
   headers: HeaderLike,
 ): Promise<AuthSession> {
@@ -34,7 +67,10 @@ export async function checkAuthSession(
   const token = headers.get('X-Admin-Access')?.trim();
 
   if (!token) {
-    return { isAdmin: isDev, userInfo: null };
+    return makeSession(
+      isDev ? 'admin' : 'visitor',
+      isDev ? DEV_USER_INFO : null,
+    );
   }
 
   try {
@@ -45,26 +81,26 @@ export async function checkAuthSession(
 
     const userInfo = (payload.user_info as UserInfo) || null;
 
-    // If userInfo is null or has no enrgdaq-control role, reject unless in development
+    // If userInfo is null or has no enrgdaq-control base role, reject unless in development
     if (
       !userInfo ||
       !Array.isArray(userInfo.roles) ||
-      !userInfo.roles.includes('enrgdaq-control')
+      (!userInfo.roles.includes('enrgdaq-control') &&
+        !userInfo.roles.includes('enrgdaq-control-visitor'))
     ) {
-      return { isAdmin: isDev, userInfo: isDev ? DEV_USER_INFO : null };
+      return makeSession(
+        isDev ? 'admin' : 'visitor',
+        isDev ? DEV_USER_INFO : null,
+      );
     }
 
-    const isAdmin =
-      Array.isArray(userInfo.roles) &&
-      userInfo.roles.includes('enrgdaq-control-superadmin');
-
-    return {
-      isAdmin,
-      userInfo,
-    };
+    return makeSession(resolveRole(userInfo), userInfo);
   } catch (error) {
     console.error('Failed to verify X-Admin-Access JWT:', error);
     // Invalid token: reject unless in development
-    return { isAdmin: isDev, userInfo: isDev ? DEV_USER_INFO : null };
+    return makeSession(
+      isDev ? 'admin' : 'visitor',
+      isDev ? DEV_USER_INFO : null,
+    );
   }
 }
