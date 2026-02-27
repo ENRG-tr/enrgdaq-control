@@ -476,9 +476,7 @@ function parseJobSchema(
 
   return {
     type: jobType,
-    label:
-      mainConfig.title?.replace('Config', '').replace('DAQJob', '') ||
-      toLabel(jobType),
+    label: toLabel(jobType),
     description: mainConfig.description,
     fields,
     requiredFields: Array.from(requiredFields),
