@@ -398,14 +398,16 @@ const AdvancedControl = () => {
 
         {/* Logs */}
         <div className="col-lg-5">
-          <div className="card h-100 border-secondary bg-dark">
+          <div className="card h-100 border-secondary bg-dark d-flex flex-column">
             <div className="card-header fw-bold bg-dark border-secondary">
               <i className="fa-solid fa-list-ul me-2"></i>Supervisor Logs
             </div>
-            <div className="card-body p-0 d-flex flex-column">
+            <div
+              className="card-body p-0 flex-grow-1 position-relative"
+              style={{ minHeight: '500px' }}
+            >
               <div
-                className="console-logs m-0 flex-grow-1 border-0 rounded-0 overflow-auto"
-                style={{ minHeight: '500px' }}
+                className="console-logs m-0 position-absolute top-0 start-0 w-100 h-100 border-0 rounded-0 overflow-auto"
                 onScroll={handleLogsScroll}
               >
                 {[...logs]
