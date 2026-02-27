@@ -14,6 +14,8 @@ const AdvancedControl = () => {
     clientStatus,
     clientOnline,
     logs,
+    logsLimit,
+    increaseLogsLimit,
     selectClient,
   } = useStore();
 
@@ -53,6 +55,18 @@ const AdvancedControl = () => {
     const template = templates.find((t) => t.name === name);
     if (template) {
       setCustomConfig(template.config);
+    }
+  };
+
+  const handleLogsScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    // We check if we are near the bottom of the container
+    // Using Math.abs for scrollTop in case of flex-col-reverse implementations
+    if (scrollHeight - Math.abs(scrollTop) <= clientHeight + 50) {
+      // If we already loaded exactly as many logs as the limit, there might be more to fetch
+      if (logs.length >= logsLimit) {
+        increaseLogsLimit();
+      }
     }
   };
 
@@ -139,7 +153,7 @@ const AdvancedControl = () => {
       const error = e as { message?: string };
       console.error('Failed to stop all jobs:', e);
       toast.error(
-        `Failed to stop all jobs: ${error.message || 'Unknown error'}`
+        `Failed to stop all jobs: ${error.message || 'Unknown error'}`,
       );
     } finally {
       setIsStoppingAll(false);
@@ -248,7 +262,7 @@ const AdvancedControl = () => {
                                   handleEditConfig(jobConfig, job.unique_id);
                                 } else {
                                   toast.error(
-                                    'No configuration available for this job.'
+                                    'No configuration available for this job.',
                                   );
                                 }
                               }}
@@ -390,8 +404,9 @@ const AdvancedControl = () => {
             </div>
             <div className="card-body p-0">
               <div
-                className="console-logs m-0 h-100 border-0 rounded-0"
+                className="console-logs m-0 h-100 border-0 rounded-0 overflow-auto"
                 style={{ minHeight: '500px', maxHeight: '500px' }}
+                onScroll={handleLogsScroll}
               >
                 {[...logs]
                   .reverse()
@@ -399,6 +414,7 @@ const AdvancedControl = () => {
                   .map((l: LogEntry, i) => (
                     <div key={i} className="log-entry">
                       <small className="text-muted">[{l.timestamp}]</small>{' '}
+                      <span className="text-info">[{l.module}]</span>{' '}
                       <span
                         className={`log-level log-level-${l.level.toLowerCase()}`}
                       >

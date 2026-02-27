@@ -250,8 +250,10 @@ export const API = {
     return data;
   },
 
-  async getLogs(clientId: string) {
-    const { data } = await api.get(`/clients/${clientId}/logs`);
+  async getLogs(clientId: string, limit?: number) {
+    const { data } = await api.get(`/clients/${clientId}/logs`, {
+      params: { limit },
+    });
     return data.logs;
   },
 

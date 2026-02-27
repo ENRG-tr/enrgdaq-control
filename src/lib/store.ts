@@ -9,6 +9,7 @@ interface AppState {
   clientStatus: ClientStatus | null;
   clientOnline: boolean;
   logs: LogEntry[];
+  logsLimit: number;
   isAdmin: boolean;
   userInfo: AuthUserInfo | null;
 
@@ -25,6 +26,7 @@ interface AppState {
   selectClient: (id: string) => void;
   pollClientStatus: () => Promise<void>;
   checkAuthStatus: () => Promise<void>;
+  increaseLogsLimit: () => void;
 
   startRun: (
     description: string,
@@ -45,6 +47,7 @@ export const useStore = create<AppState>((set, get) => ({
   clientStatus: null,
   clientOnline: false,
   logs: [],
+  logsLimit: 150,
   isAdmin: false,
   userInfo: null,
 
@@ -68,18 +71,23 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   selectClient: (id: string) => {
-    set({ selectedClient: id, logs: [] });
+    set({ selectedClient: id, logs: [], logsLimit: 150 });
+    get().pollClientStatus();
+  },
+
+  increaseLogsLimit: () => {
+    set((state) => ({ logsLimit: state.logsLimit + 150 }));
     get().pollClientStatus();
   },
 
   pollClientStatus: async () => {
-    const { selectedClient } = get();
+    const { selectedClient, logsLimit } = get();
     if (!selectedClient) return;
 
     try {
       // Simple ping check via status
       const status = await API.getStatus(selectedClient);
-      const newLogs = await API.getLogs(selectedClient);
+      const newLogs = await API.getLogs(selectedClient, logsLimit);
       set({ clientOnline: true, clientStatus: status, logs: newLogs });
 
       // Also refresh runs periodically to check status updates?
