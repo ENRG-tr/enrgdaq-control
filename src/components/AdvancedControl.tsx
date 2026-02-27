@@ -402,10 +402,10 @@ const AdvancedControl = () => {
             <div className="card-header fw-bold bg-dark border-secondary">
               <i className="fa-solid fa-list-ul me-2"></i>Supervisor Logs
             </div>
-            <div className="card-body p-0">
+            <div className="card-body p-0 d-flex flex-column">
               <div
-                className="console-logs m-0 h-100 border-0 rounded-0 overflow-auto"
-                style={{ minHeight: '500px', maxHeight: '500px' }}
+                className="console-logs m-0 flex-grow-1 border-0 rounded-0 overflow-auto"
+                style={{ minHeight: '500px' }}
                 onScroll={handleLogsScroll}
               >
                 {[...logs]
