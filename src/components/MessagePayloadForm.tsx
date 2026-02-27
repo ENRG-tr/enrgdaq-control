@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { API } from '@/lib/api-client';
-import validator from '@rjsf/validator-ajv8';
-import Form from '@rjsf/react-bootstrap';
 
 interface MessagePayloadFormProps {
   messageType: string;
@@ -12,10 +10,6 @@ interface MessagePayloadFormProps {
   disabled?: boolean;
 }
 
-/**
- * RJSF-based form for editing message payloads.
- * Uses JSON schemas from the /templates/messages API.
- */
 const MessagePayloadForm: React.FC<MessagePayloadFormProps> = ({
   messageType,
   initialPayload,
@@ -24,9 +18,6 @@ const MessagePayloadForm: React.FC<MessagePayloadFormProps> = ({
 }) => {
   const [schemas, setSchemas] = useState<Record<string, any> | null>(null);
   const [schemasLoading, setSchemasLoading] = useState(true);
-  const [schemasError, setSchemasError] = useState<string | null>(null);
-  const [formData, setFormData] = useState<any>({});
-  const [showRawEditor, setShowRawEditor] = useState(false);
   const [rawPayload, setRawPayload] = useState(initialPayload || '{}');
 
   // Fetch schemas on mount
@@ -36,13 +27,8 @@ const MessagePayloadForm: React.FC<MessagePayloadFormProps> = ({
         setSchemasLoading(true);
         const data = await API.getMessageSchemas();
         setSchemas(data);
-        setSchemasError(null);
       } catch (error) {
         console.error('Failed to fetch message schemas:', error);
-        setSchemasError(
-          'Failed to load message schemas. Using raw JSON editor.'
-        );
-        setShowRawEditor(true);
       } finally {
         setSchemasLoading(false);
       }
@@ -51,33 +37,77 @@ const MessagePayloadForm: React.FC<MessagePayloadFormProps> = ({
     fetchSchemas();
   }, []);
 
-  // Parse initial payload when it changes
+  // Sync with prop
   useEffect(() => {
-    if (!initialPayload) {
-      setFormData({});
-      setRawPayload('{}');
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(initialPayload);
-      setFormData(parsed);
-      setRawPayload(initialPayload);
-    } catch (e) {
-      console.error('Failed to parse initial payload:', e);
+    if (initialPayload && initialPayload !== rawPayload) {
       setRawPayload(initialPayload);
     }
   }, [initialPayload]);
 
   const handleRawChange = (value: string) => {
     setRawPayload(value);
+    onChange(value);
+  };
+
+  const handleFormat = () => {
     try {
-      const parsed = JSON.parse(value);
-      setFormData(parsed);
-      onChange(value);
+      const parsed = JSON.parse(rawPayload);
+      const formatted = JSON.stringify(parsed, null, 2);
+      setRawPayload(formatted);
+      onChange(formatted);
     } catch {
-      // Invalid JSON, still update but don't sync to form
-      onChange(value);
+      // Ignore formatting error if invalid json
+    }
+  };
+
+  const handleGenerateTemplate = () => {
+    if (!schemas || !schemas[messageType]) return;
+
+    if (window.confirm('This will overwrite your current payload. Continue?')) {
+      const schema = schemas[messageType];
+
+      // Helper to recursively generate default fields
+      const generateDefault = (s: any): any => {
+        if (s.default !== undefined) return s.default;
+        switch (s.type) {
+          case 'string':
+            return '';
+          case 'number':
+          case 'integer':
+            return 0;
+          case 'boolean':
+            return false;
+          case 'array':
+            return [];
+          case 'object':
+            if (!s.properties) return {};
+            const obj: any = {};
+            for (const key in s.properties) {
+              // Skip internal/meta fields
+              if (
+                [
+                  'id',
+                  'timestamp',
+                  'is_remote',
+                  'daq_job_info',
+                  'remote_config',
+                ].includes(key)
+              )
+                continue;
+              obj[key] = generateDefault(s.properties[key]);
+            }
+            return obj;
+          default:
+            return null;
+        }
+      };
+
+      if (schema.properties) {
+        const template = generateDefault(schema);
+        const json = JSON.stringify(template, null, 2);
+        setRawPayload(json);
+        onChange(json);
+      }
     }
   };
 
@@ -96,92 +126,54 @@ const MessagePayloadForm: React.FC<MessagePayloadFormProps> = ({
     );
   }
 
-  // Error state or no schema for this message type - show raw editor
   const schema = schemas?.[messageType];
-  if (schemasError || !schema) {
-    return (
-      <div>
-        {schemasError && (
-          <div className="alert alert-warning py-2 mb-3">
-            <i className="fa-solid fa-triangle-exclamation me-2"></i>
-            {schemasError}
-          </div>
-        )}
-        <textarea
-          className="form-control bg-black text-warning border-secondary font-monospace"
-          rows={8}
-          value={rawPayload}
-          onChange={(e) => handleRawChange(e.target.value)}
-          disabled={disabled}
-          spellCheck={false}
-          placeholder='{"reason": "User requested stop"}'
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="message-payload-form">
-      {/* Toggle between form and raw editor */}
-      <div className="d-flex justify-content-end mb-3">
-        <div className="btn-group btn-group-sm">
+      <div className="d-flex justify-content-between align-items-center mb-2">
+        <label className="form-label text-warning fw-bold mb-0">
+          <i className="fa-solid fa-code me-2"></i>
+          JSON Payload
+        </label>
+        <div>
+          {schema && (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-info me-2"
+              onClick={handleGenerateTemplate}
+              disabled={disabled}
+              title="Generate a blank template based on the schema"
+            >
+              <i className="fa-solid fa-wand-magic-sparkles me-1"></i> Template
+            </button>
+          )}
           <button
             type="button"
-            className={`btn ${
-              !showRawEditor ? 'btn-primary' : 'btn-outline-secondary'
-            }`}
-            onClick={() => setShowRawEditor(false)}
+            className="btn btn-sm btn-outline-secondary"
+            onClick={handleFormat}
+            disabled={disabled}
+            title="Pretty-print JSON"
           >
-            <i className="fa-solid fa-sliders me-1"></i> Form
-          </button>
-          <button
-            type="button"
-            className={`btn ${
-              showRawEditor ? 'btn-primary' : 'btn-outline-secondary'
-            }`}
-            onClick={() => setShowRawEditor(true)}
-          >
-            <i className="fa-solid fa-code me-1"></i> JSON
+            <i className="fa-solid fa-align-left me-1"></i> Format
           </button>
         </div>
       </div>
 
-      {showRawEditor ? (
-        <div>
-          <textarea
-            className="form-control bg-black text-warning border-secondary font-monospace"
-            rows={8}
-            value={rawPayload}
-            onChange={(e) => handleRawChange(e.target.value)}
-            disabled={disabled}
-            spellCheck={false}
-          />
-        </div>
-      ) : (
-        <div className="bg-dark p-3 rounded border border-secondary rjsf-dark">
-          <Form
-            schema={schema}
-            formData={formData}
-            disabled={disabled}
-            onChange={(e) => {
-              setFormData(e.formData);
-              const json = JSON.stringify(e.formData, null, 2);
-              setRawPayload(json);
-              onChange(json);
-            }}
-            validator={validator}
-            uiSchema={{
-              // Hide fields that are auto-populated
-              id: { 'ui:widget': 'hidden' },
-              timestamp: { 'ui:widget': 'hidden' },
-              is_remote: { 'ui:widget': 'hidden' },
-              daq_job_info: { 'ui:widget': 'hidden' },
-              remote_config: { 'ui:widget': 'hidden' },
-            }}
-          >
-            {/* Hide default submit button */}
-            <button type="submit" style={{ display: 'none' }} />
-          </Form>
+      <textarea
+        className="form-control bg-black text-warning border-secondary font-monospace p-3"
+        rows={8}
+        value={rawPayload}
+        onChange={(e) => handleRawChange(e.target.value)}
+        disabled={disabled}
+        spellCheck={false}
+        placeholder='{"reason": "User requested stop"}'
+        style={{ lineHeight: '1.4', fontSize: '13px' }}
+      />
+
+      {schema?.description && (
+        <div className="text-muted small mt-2">
+          <i className="fa-solid fa-circle-info me-1"></i>
+          {schema.description}
         </div>
       )}
     </div>

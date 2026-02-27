@@ -82,7 +82,7 @@ function toLabel(name: string): string {
  */
 function resolveRef(
   ref: string,
-  defs: Record<string, JSONSchema>
+  defs: Record<string, JSONSchema>,
 ): JSONSchema | null {
   // $ref format: "#/$defs/DefinitionName"
   const match = ref.match(/^#\/\$defs\/(.+)$/);
@@ -97,7 +97,7 @@ function resolveRef(
  */
 function getFieldType(
   schema: JSONSchema,
-  defs: Record<string, JSONSchema>
+  defs: Record<string, JSONSchema>,
 ): FieldDefinition['type'] {
   // Handle $ref
   if (schema.$ref) {
@@ -156,7 +156,7 @@ function isNullable(schema: JSONSchema): boolean {
  */
 function getEnumOptions(
   schema: JSONSchema,
-  defs: Record<string, JSONSchema>
+  defs: Record<string, JSONSchema>,
 ): { value: string; label: string }[] | undefined {
   // Handle $ref
   if (schema.$ref) {
@@ -189,7 +189,7 @@ function getEnumOptions(
  */
 function getDescription(
   schema: JSONSchema,
-  defs: Record<string, JSONSchema>
+  defs: Record<string, JSONSchema>,
 ): string | undefined {
   if (schema.description) return schema.description;
 
@@ -215,7 +215,7 @@ function parseField(
   name: string,
   schema: JSONSchema,
   required: boolean,
-  defs: Record<string, JSONSchema>
+  defs: Record<string, JSONSchema>,
 ): FieldDefinition {
   const fieldType = getFieldType(schema, defs);
 
@@ -252,7 +252,7 @@ function parseField(
     if (schema.anyOf) {
       arraySchema =
         schema.anyOf.find(
-          (s) => s.type === 'array' || (s.items && s.items.$ref)
+          (s) => s.type === 'array' || (s.items && s.items.$ref),
         ) || schema;
     }
 
@@ -266,7 +266,7 @@ function parseField(
         const requiredFields = new Set(itemSchema.required || []);
 
         for (const [propName, propSchema] of Object.entries(
-          itemSchema.properties
+          itemSchema.properties,
         )) {
           // Prevent infinite recursion by skipping complex nested objects inside the array item for now
           // We can expand this later if needed
@@ -276,7 +276,12 @@ function parseField(
           }
 
           objectFields.push(
-            parseField(propName, propSchema, requiredFields.has(propName), defs)
+            parseField(
+              propName,
+              propSchema,
+              requiredFields.has(propName),
+              defs,
+            ),
           );
         }
       }
@@ -302,7 +307,7 @@ function parseField(
  * Parse store config schemas from the $defs
  */
 function parseStoreConfigSchemas(
-  defs: Record<string, JSONSchema>
+  defs: Record<string, JSONSchema>,
 ): Record<string, StoreConfigSchema> {
   const storeSchemas: Record<string, StoreConfigSchema> = {};
 
@@ -312,7 +317,7 @@ function parseStoreConfigSchemas(
   const remoteConfigDef = defs['DAQRemoteConfig'];
   if (remoteConfigDef?.properties) {
     for (const [propName, propSchema] of Object.entries(
-      remoteConfigDef.properties
+      remoteConfigDef.properties,
     )) {
       // Skip drop_remote_messages - it only applies at job level, not store level
       if (propName === 'drop_remote_messages') continue;
@@ -352,7 +357,7 @@ function parseStoreConfigSchemas(
         if (propName === 'remote_config') continue;
 
         fields.push(
-          parseField(propName, propSchema, requiredFields.has(propName), defs)
+          parseField(propName, propSchema, requiredFields.has(propName), defs),
         );
       }
     }
@@ -375,14 +380,14 @@ function parseStoreConfigSchemas(
  * Parse global remote_config fields for job level
  */
 function parseGlobalRemoteConfigFields(
-  defs: Record<string, JSONSchema>
+  defs: Record<string, JSONSchema>,
 ): FieldDefinition[] {
   const fields: FieldDefinition[] = [];
   const remoteConfigDef = defs['DAQRemoteConfig'];
 
   if (remoteConfigDef?.properties) {
     for (const [propName, propSchema] of Object.entries(
-      remoteConfigDef.properties
+      remoteConfigDef.properties,
     )) {
       const fieldType = getFieldType(propSchema, defs);
       if (fieldType !== 'object') {
@@ -403,7 +408,7 @@ function parseGlobalRemoteConfigFields(
  */
 function parseJobSchema(
   jobType: string,
-  data: { $ref: string; $defs: Record<string, JSONSchema> }
+  data: { $ref: string; $defs: Record<string, JSONSchema> },
 ): DAQJobSchema | null {
   const defs = data.$defs;
 
@@ -431,7 +436,7 @@ function parseJobSchema(
     // Check anyOf (for optional store configs like "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/DAQJobStoreConfig" }])
     if (propSchema.anyOf) {
       return propSchema.anyOf.some(
-        (option) => option.$ref === storeConfigRefPattern
+        (option) => option.$ref === storeConfigRefPattern,
       );
     }
     return false;
@@ -462,7 +467,7 @@ function parseJobSchema(
     }
 
     fields.push(
-      parseField(propName, propSchema, requiredFields.has(propName), defs)
+      parseField(propName, propSchema, requiredFields.has(propName), defs),
     );
   }
 
@@ -510,7 +515,7 @@ export function parseDAQJobSchemas(apiResponse: RawAPIResponse): ParsedSchemas {
  * Get available job types from parsed schemas
  */
 export function getJobTypes(
-  schemas: ParsedSchemas
+  schemas: ParsedSchemas,
 ): { value: string; label: string }[] {
   return Object.values(schemas.jobSchemas).map((s) => ({
     value: s.type,
@@ -522,10 +527,131 @@ export function getJobTypes(
  * Get available store config types
  */
 export function getStoreTypes(
-  schemas: ParsedSchemas
+  schemas: ParsedSchemas,
 ): { value: string; label: string }[] {
   return Object.values(schemas.storeConfigSchemas).map((s) => ({
     value: s.type,
     label: s.label,
   }));
+}
+
+/**
+ * Generate a commented TOML string from a DAQJobSchema
+ */
+export function generateCommentedToml(
+  schemas: ParsedSchemas,
+  jobType: string,
+): string {
+  const schema = schemas.jobSchemas[jobType];
+  if (!schema) return `daq_job_type = "${jobType}"`;
+
+  const lines: string[] = [];
+
+  if (schema.label) {
+    lines.push(`# ==========================================`);
+    lines.push(`# ${schema.label}`);
+    lines.push(`# ==========================================`);
+  }
+  if (schema.description) {
+    const descLines = schema.description.split('\n');
+    for (const d of descLines) {
+      lines.push(`# ${d.trim()}`);
+    }
+  }
+  lines.push('');
+  lines.push(`daq_job_type = "${jobType}"`);
+  lines.push('');
+
+  // Process normal fields
+  for (const field of schema.fields) {
+    if (field.name.includes('.')) continue; // skip remote_config for now
+
+    if (field.description) {
+      const descLines = field.description.split('\n');
+      for (const d of descLines) {
+        lines.push(`# ${d.trim()}`);
+      }
+    }
+
+    let defaultStr = '""';
+    if (field.default !== undefined && field.default !== null) {
+      if (typeof field.default === 'string') defaultStr = `"${field.default}"`;
+      else if (Array.isArray(field.default))
+        defaultStr = `[${field.default.map((v) => (typeof v === 'string' ? `"${v}"` : v)).join(', ')}]`;
+      else defaultStr = String(field.default);
+    } else {
+      if (field.type === 'number') defaultStr = '0';
+      if (field.type === 'boolean') defaultStr = 'false';
+      if (field.type === 'array') defaultStr = '[]';
+    }
+
+    const isRequired = field.required ? '' : '# ';
+    lines.push(`${isRequired}${field.name} = ${defaultStr}`);
+    lines.push('');
+  }
+
+  // Remote config group
+  const rcFields = schema.fields.filter((f) =>
+    f.name.startsWith('remote_config.'),
+  );
+  if (rcFields.length > 0) {
+    lines.push(`[remote_config]`);
+    for (const field of rcFields) {
+      if (field.description) {
+        const descLines = field.description.split('\n');
+        for (const d of descLines) {
+          lines.push(`# ${d.trim()}`);
+        }
+      }
+      const rawName = field.name.replace('remote_config.', '');
+
+      let defaultStr = '""';
+      if (field.default !== undefined && field.default !== null) {
+        if (typeof field.default === 'string')
+          defaultStr = `"${field.default}"`;
+        else defaultStr = String(field.default);
+      } else {
+        if (field.type === 'number') defaultStr = '0';
+        if (field.type === 'boolean') defaultStr = 'false';
+        if (field.type === 'array') defaultStr = '[]';
+      }
+
+      const isRequired = field.required ? '' : '# ';
+      lines.push(`${isRequired}${rawName} = ${defaultStr}`);
+      lines.push('');
+    }
+  }
+
+  // Store Configs
+  if (schema.storeConfigKeys && schema.storeConfigKeys.length > 0) {
+    lines.push(`# ==========================================`);
+    lines.push(`# Store Configurations`);
+    lines.push(`# ==========================================`);
+    lines.push('');
+
+    const storeTypes = Object.values(schemas.storeConfigSchemas);
+    if (storeTypes.length > 0) {
+      lines.push(
+        `# Available store config types: ${storeTypes.map((s) => s.type).join(', ')}`,
+      );
+      lines.push('');
+      const exampleType = storeTypes[0];
+      for (const stKey of schema.storeConfigKeys) {
+        lines.push(`# Example of a ${exampleType.type} store for ${stKey}:`);
+        lines.push(`#[${stKey}]`);
+        lines.push(`#type = "${exampleType.type}"`);
+        for (const field of exampleType.fields) {
+          if (field.name.includes('.')) continue; // skip nested
+          let defaultStr = '""';
+          if (field.type === 'number') defaultStr = '0';
+          if (field.type === 'boolean') defaultStr = 'false';
+          const isRequired = field.required ? '' : '# ';
+          lines.push(`#${isRequired}${field.name} = ${defaultStr}`);
+        }
+        lines.push('');
+      }
+    }
+  }
+
+  return lines.join('\n');
 }

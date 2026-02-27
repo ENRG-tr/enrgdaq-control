@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { parseToml, stringifyToml, type TomlObject } from '@/lib/toml-utils';
+import React, { useState, useEffect } from 'react';
+import { parseToml } from '@/lib/toml-utils';
 import {
   parseDAQJobSchemas,
   getJobTypes,
+  generateCommentedToml,
   type ParsedSchemas,
-  type FieldDefinition,
-  type DAQJobSchema,
-  type StoreConfigSchema,
 } from '@/lib/schema-parser';
 import { API } from '@/lib/api-client';
 
@@ -50,9 +48,6 @@ const formatDescription = (text: string | undefined): React.ReactNode => {
   );
 };
 
-import validator from '@rjsf/validator-ajv8';
-import Form from '@rjsf/react-bootstrap';
-
 const TomlForm: React.FC<TomlFormProps> = ({
   initialToml,
   onChange,
@@ -60,18 +55,13 @@ const TomlForm: React.FC<TomlFormProps> = ({
   disableJobType = false,
 }) => {
   const [schemas, setSchemas] = useState<ParsedSchemas | null>(null);
-  // Store raw schemas for RJSF
-  const [rawSchemas, setRawSchemas] = useState<Record<string, any> | null>(
-    null
-  );
   const [schemasLoading, setSchemasLoading] = useState(true);
   const [schemasError, setSchemasError] = useState<string | null>(null);
-  const [rjsfData, setRjsfData] = useState<any>({});
 
   const [formData, setFormData] = useState<FormData>({
     daq_job_type: '',
   });
-  const [showRawEditor, setShowRawEditor] = useState(false);
+
   const [rawToml, setRawToml] = useState(initialToml);
   const [parseError, setParseError] = useState<string | null>(null);
 
@@ -81,9 +71,8 @@ const TomlForm: React.FC<TomlFormProps> = ({
       try {
         setSchemasLoading(true);
         const rawSchemas = await API.getDAQJobSchemas();
-        setRawSchemas(rawSchemas);
         const parsed = parseDAQJobSchemas(
-          rawSchemas as Parameters<typeof parseDAQJobSchemas>[0]
+          rawSchemas as Parameters<typeof parseDAQJobSchemas>[0],
         );
         setSchemas(parsed);
         setSchemasError(null);
@@ -99,24 +88,25 @@ const TomlForm: React.FC<TomlFormProps> = ({
       } catch (error) {
         console.error('Failed to fetch DAQ job schemas:', error);
         setSchemasError(
-          'Failed to load DAQ job schemas. Using raw TOML editor.'
+          'Failed to load DAQ job schemas. Using raw TOML editor.',
         );
-        setShowRawEditor(true);
       } finally {
         setSchemasLoading(false);
       }
     };
 
     fetchSchemas();
-  }, []);
+  }, [formData.daq_job_type]);
 
   // Parse TOML when initialToml or schemas change
   useEffect(() => {
+    // Always sync the text area if we receive new initialToml from outside
+    setRawToml(initialToml);
+
     if (!schemas) return;
 
     try {
       const parsed = parseToml(initialToml);
-      setRjsfData(parsed);
 
       // Extract daq_job_type
       const daqJobType =
@@ -124,35 +114,31 @@ const TomlForm: React.FC<TomlFormProps> = ({
         Object.keys(schemas.jobSchemas)[0] ||
         '';
 
-      // We only track job type manually now
       setFormData((prev) => ({ ...prev, daq_job_type: daqJobType }));
-      setRawToml(initialToml);
       setParseError(null);
     } catch (e) {
       setParseError('Failed to parse TOML configuration');
       console.error(e);
     }
-  }, [initialToml, schemas, rawToml]);
+  }, [initialToml, schemas]);
 
   // Handle DAQ job type change
   const handleJobTypeChange = (newType: string) => {
-    // Reset RJSF data when job type changes
-    const newRjsfData = { daq_job_type: newType };
-    setRjsfData(newRjsfData);
-
-    // Update raw TOML and notify parent
-    const toml = stringifyToml(newRjsfData);
-    setRawToml(toml);
-    onChange(toml);
-
     setFormData((prev) => ({ ...prev, daq_job_type: newType }));
+
+    // Auto-generate template for this job type
+    if (schemas) {
+      const tomlTemplate = generateCommentedToml(schemas, newType);
+      setRawToml(tomlTemplate);
+      onChange(tomlTemplate);
+      setParseError(null);
+    }
   };
 
   const handleRawChange = (value: string) => {
     setRawToml(value);
     try {
       const parsed = parseToml(value);
-      setRjsfData(parsed);
 
       const daqJobType = (parsed.daq_job_type as string) || '';
       if (daqJobType && daqJobType !== formData.daq_job_type) {
@@ -163,6 +149,24 @@ const TomlForm: React.FC<TomlFormProps> = ({
       onChange(value);
     } catch {
       setParseError('Invalid TOML syntax');
+    }
+  };
+
+  const handleGenerateTemplate = () => {
+    if (!schemas || !formData.daq_job_type) return;
+
+    if (
+      window.confirm(
+        'This will overwrite your current configuration. Are you sure?',
+      )
+    ) {
+      const tomlTemplate = generateCommentedToml(
+        schemas,
+        formData.daq_job_type,
+      );
+      setRawToml(tomlTemplate);
+      onChange(tomlTemplate);
+      setParseError(null);
     }
   };
 
@@ -205,113 +209,70 @@ const TomlForm: React.FC<TomlFormProps> = ({
   const jobSchema = schemas.jobSchemas[formData.daq_job_type];
   const jobTypes = getJobTypes(schemas);
 
-  if (parseError && !showRawEditor) {
-    return (
-      <div className="alert alert-warning">
-        <i className="fa-solid fa-triangle-exclamation me-2"></i>
-        {parseError}
-        <button
-          className="btn btn-sm btn-outline-light ms-3"
-          onClick={() => setShowRawEditor(true)}
-        >
-          Edit Raw TOML
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="toml-form">
-      {/* Toggle between form and raw editor */}
-      <div className="d-flex justify-content-end mb-3">
-        <div className="btn-group btn-group-sm">
-          <button
-            className={`btn ${
-              !showRawEditor ? 'btn-primary' : 'btn-outline-secondary'
-            }`}
-            onClick={() => setShowRawEditor(false)}
+      {/* DAQ Job Type Selection */}
+      <div className="mb-4 d-flex align-items-end gap-3">
+        <div className="flex-grow-1">
+          <label className="form-label text-info fw-bold">
+            <i className="fa-solid fa-microchip me-2"></i>
+            DAQ Job Type
+          </label>
+          <select
+            className="form-select bg-dark text-light border-secondary"
+            value={formData.daq_job_type}
+            onChange={(e) => handleJobTypeChange(e.target.value)}
+            disabled={disabled || disableJobType}
           >
-            <i className="fa-solid fa-sliders me-1"></i> Form
-          </button>
-          <button
-            className={`btn ${
-              showRawEditor ? 'btn-primary' : 'btn-outline-secondary'
-            }`}
-            onClick={() => setShowRawEditor(true)}
-          >
-            <i className="fa-solid fa-code me-1"></i> TOML
-          </button>
+            {jobTypes.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {!disableJobType && !disabled && (
+          <button
+            type="button"
+            className="btn btn-outline-info"
+            onClick={handleGenerateTemplate}
+            title="Generate a default template with all comments"
+          >
+            <i className="fa-solid fa-wand-magic-sparkles me-2"></i>
+            Insert Template
+          </button>
+        )}
       </div>
 
-      {showRawEditor ? (
-        <div>
-          <textarea
-            className="form-control bg-black text-warning border-secondary font-monospace"
-            rows={12}
-            value={rawToml}
-            onChange={(e) => handleRawChange(e.target.value)}
-            disabled={disabled}
-          />
-          {parseError && (
-            <div className="text-danger small mt-2">
-              <i className="fa-solid fa-circle-xmark me-1"></i>
-              {parseError}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="form-fields">
-          {/* DAQ Job Type Selection */}
-          <div className="mb-4">
-            <label className="form-label text-info fw-bold">
-              <i className="fa-solid fa-microchip me-2"></i>
-              DAQ Job Type
-            </label>
-            <select
-              className="form-select bg-dark text-light border-secondary"
-              value={formData.daq_job_type}
-              onChange={(e) => handleJobTypeChange(e.target.value)}
-              disabled={disabled || disableJobType}
-            >
-              {jobTypes.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            {jobSchema?.description && (
-              <small className="text-muted d-block mt-1">
-                {formatDescription(jobSchema.description)}
-              </small>
-            )}
-          </div>
-
-          {/* RJSF Implementation */}
-          {rawSchemas && formData.daq_job_type && (
-            <div className="bg-dark p-3 rounded border border-secondary mb-4 rjsf-dark">
-              <Form
-                schema={rawSchemas[formData.daq_job_type]}
-                formData={rjsfData}
-                disabled={disabled}
-                onChange={(e) => {
-                  setRjsfData(e.formData);
-                  const toml = stringifyToml(e.formData);
-                  setRawToml(toml);
-                  onChange(toml);
-                }}
-                validator={validator}
-                uiSchema={{
-                  daq_job_type: { 'ui:widget': 'hidden' },
-                }}
-              >
-                {/* Hide default submit button */}
-                <button type="submit" style={{ display: 'none' }} />
-              </Form>
-            </div>
-          )}
+      {jobSchema?.description && (
+        <div className="mb-3 small text-light opacity-75">
+          {formatDescription(jobSchema.description)}
         </div>
       )}
+
+      <div>
+        <div className="d-flex justify-content-between align-items-center mb-2">
+          <label className="form-label text-warning fw-bold mb-0">
+            <i className="fa-solid fa-code me-2"></i>
+            TOML Configuration
+          </label>
+        </div>
+        <textarea
+          className="form-control bg-black text-warning border-secondary font-monospace p-3"
+          rows={16}
+          value={rawToml}
+          onChange={(e) => handleRawChange(e.target.value)}
+          disabled={disabled}
+          style={{ lineHeight: '1.4', fontSize: '13px' }}
+        />
+        {parseError && (
+          <div className="text-danger small mt-2">
+            <i className="fa-solid fa-circle-xmark me-1"></i>
+            {parseError}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
