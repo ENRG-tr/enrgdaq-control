@@ -330,38 +330,79 @@ const RunDashboard = () => {
               activeRun ? 'border-success' : 'border-secondary'
             }`}
           >
-            <div className="card-body d-flex flex-column justify-content-center align-items-center p-5 text-center">
+            <div className="card-body p-4 p-xl-5 d-flex flex-column">
               {activeRun ? (
-                <>
-                  <div className="display-1 text-success mb-3">
-                    <i className="fa-solid fa-heart-pulse fa-beat"></i>
+                <div className="text-center h-100 d-flex flex-column justify-content-center">
+                  <div className="mb-4">
+                    <div className="display-4 text-success mb-2">
+                      <i className="fa-solid fa-heart-pulse fa-beat"></i>
+                    </div>
+                    <h4
+                      className="text-success fw-bold tracking-widest mb-0"
+                      style={{ letterSpacing: '2px' }}
+                    >
+                      ACQUISITION ACTIVE
+                    </h4>
                   </div>
-                  <h3 className="text-success fw-bold">ACQUISITION ACTIVE</h3>
-                  <h5 className="text-light mt-3">Run ID: #{activeRun.id}</h5>
-                  <div className="badge bg-secondary mb-2">
-                    {getRunTypeName(activeRun.runTypeId)}
+
+                  {/* Run Details Grid */}
+                  <div className="bg-body-tertiary bg-opacity-10 rounded-3 p-3 mb-4 border border-secondary border-opacity-50 text-start">
+                    <div className="row g-3">
+                      <div className="col-6">
+                        <span className="text-muted small d-block text-uppercase fw-semibold mb-1">
+                          Run ID
+                        </span>
+                        <span className="fs-5 text-light fw-bold">
+                          #{activeRun.id}
+                        </span>
+                      </div>
+                      <div className="col-6">
+                        <span className="text-muted small d-block text-uppercase fw-semibold mb-1">
+                          Type
+                        </span>
+                        <span className="badge bg-secondary fs-6">
+                          {getRunTypeName(activeRun.runTypeId)}
+                        </span>
+                      </div>
+                      <div className="col-12 mt-3 text-break">
+                        <span className="text-muted small d-block text-uppercase fw-semibold mb-1">
+                          Description
+                        </span>
+                        <span className="text-light fs-6">
+                          {activeRun.description || (
+                            <span className="text-muted fst-italic">
+                              No description
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-muted lead">"{activeRun.description}"</p>
-                  {/* Timer Countdown */}
-                  {countdown && (
-                    <div className="mb-3">
-                      <span className="badge bg-warning text-dark px-3 py-2">
-                        <i className="fa-solid fa-clock me-2"></i>
-                        {countdown}
-                      </span>
+
+                  {/* Timer Info Box */}
+                  {(countdown || activeRun.scheduledEndTime) && (
+                    <div className="bg-warning bg-opacity-10 rounded-3 p-3 mb-4 border border-warning border-opacity-25">
+                      {countdown && (
+                        <div className="fs-5 text-warning fw-bold mb-1 d-flex justify-content-center align-items-center">
+                          <i className="fa-regular fa-clock me-2"></i>
+                          <span>{countdown}</span>
+                        </div>
+                      )}
+                      {activeRun.scheduledEndTime && (
+                        <div className="text-warning text-opacity-75 small mt-2">
+                          <i className="fa-solid fa-calendar-check me-1"></i>
+                          Stops at: {formatDate(activeRun.scheduledEndTime)}
+                        </div>
+                      )}
                     </div>
                   )}
-                  {activeRun.scheduledEndTime && (
-                    <p className="text-muted small mb-0">
-                      Scheduled to stop at:{' '}
-                      {formatDate(activeRun.scheduledEndTime)}
-                    </p>
-                  )}
-                  <div className="mt-4 w-100 px-5">
+
+                  <div className="mt-auto pt-3">
                     <button
                       onClick={handleStop}
-                      className="btn btn-danger btn-lg w-100 py-3 fw-bold"
+                      className="btn btn-danger btn-lg w-100 py-3 fw-bold text-uppercase d-flex justify-content-center align-items-center gap-2 shadow-sm hover-shadow"
                       disabled={isStopping}
+                      style={{ letterSpacing: '1px' }}
                     >
                       {isStopping ? (
                         <>
@@ -370,16 +411,16 @@ const RunDashboard = () => {
                             role="status"
                             aria-hidden="true"
                           ></span>
-                          STOPPING...
+                          Stopping...
                         </>
                       ) : (
                         <>
-                          <i className="fa-solid fa-stop me-2"></i> STOP RUN
+                          <i className="fa-solid fa-stop"></i> Stop Run
                         </>
                       )}
                     </button>
                   </div>
-                </>
+                </div>
               ) : (
                 <>
                   <div className="display-1 text-muted mb-3 opacity-25">
