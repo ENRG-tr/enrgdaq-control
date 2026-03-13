@@ -2,12 +2,11 @@ import './globals.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import Sidebar from '@/components/Sidebar';
 import GlobalPoller from '@/components/GlobalPoller';
 import { Toaster } from 'react-hot-toast';
 
-const inter = Inter({ subsets: ['latin'] });
+
 
 export const metadata: Metadata = {
   title: 'ENRGDAQ Control',
@@ -22,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" data-bs-theme="dark">
-      <body className={`${inter.className} bg-dark text-light`}>
+      <body className="bg-dark text-light">
         <GlobalPoller />
         <Toaster position="top-right" />
         <div className="container-fluid vh-100 d-flex flex-column overflow-hidden p-0">
