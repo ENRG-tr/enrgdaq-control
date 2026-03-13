@@ -20,7 +20,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const isAdminPath = adminPaths.includes(pathname);
+  const isAdminPath = adminPaths.some((path) => pathname.startsWith(path));
+
   if (isAdminPath && !authSession.isAdmin) {
     return NextResponse.json(
       { error: 'Forbidden: Admin access required' },
