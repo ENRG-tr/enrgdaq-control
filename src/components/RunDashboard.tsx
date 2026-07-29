@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useStore } from '@/lib/store';
 import { API, type AggregatedParameter } from '@/lib/api-client';
 import toast from 'react-hot-toast';
@@ -194,11 +194,16 @@ const RunDashboard = () => {
   };
 
   // Countdown timer effect for active runs with scheduled end time
+  const stopTriggered = useRef(false);
   useEffect(() => {
     if (!activeRun?.scheduledEndTime) {
       setCountdown(null);
+      stopTriggered.current = false;
       return;
     }
+
+    // Reset stop flag when scheduledEndTime changes
+    stopTriggered.current = false;
 
     const updateCountdown = () => {
       const now = new Date();
@@ -207,6 +212,14 @@ const RunDashboard = () => {
 
       if (diff <= 0) {
         setCountdown('Time up! Stopping...');
+        // Actually stop the run when the countdown reaches zero.
+        // Uses a ref to prevent duplicate stop calls.
+        if (!stopTriggered.current && activeRun) {
+          stopTriggered.current = true;
+          stopRun().catch((e) =>
+            console.error('Failed to stop run from countdown:', e),
+          );
+        }
         return;
       }
 
@@ -226,7 +239,7 @@ const RunDashboard = () => {
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [activeRun?.scheduledEndTime]);
+  }, [activeRun?.scheduledEndTime, activeRun, stopRun]);
 
   const handleStop = async () => {
     if (!activeRun) return;

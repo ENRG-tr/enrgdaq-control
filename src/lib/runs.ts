@@ -143,6 +143,108 @@ export class RunController {
     return run;
   }
 
+  /**
+   * Check ALL running runs and stop any that have passed their
+   * scheduled end time or whose DAQ jobs are no longer alive.
+   * Called by the server-side background job (instrumentation.ts)
+   * and also by the existing getActiveRun flow via getAllRuns.
+   */
+  static async checkAndStopExpiredRuns(): Promise<void> {
+    const runningRuns = await db
+      .select()
+      .from(runs)
+      .where(eq(runs.status, 'RUNNING'));
+
+    for (const run of runningRuns) {
+      try {
+        let shouldStop = false;
+        let stopReason = '';
+
+        // Check scheduled end time
+        if (
+          run.scheduledEndTime &&
+          new Date() >= run.scheduledEndTime
+        ) {
+          shouldStop = true;
+          stopReason = 'scheduled end time reached';
+        }
+
+        // Check liveness
+        if (!shouldStop && run.clientId) {
+          try {
+            const status = await ENRGDAQClient.getStatus(run.clientId);
+            const activeJobIds =
+              status?.daq_jobs.map((job: any) => job.unique_id) || [];
+
+            let expectedJobIds: string[] = [];
+            if (run.daqJobIds) {
+              if (Array.isArray(run.daqJobIds)) {
+                expectedJobIds = run.daqJobIds as string[];
+              } else if (typeof run.daqJobIds === 'string') {
+                try {
+                  expectedJobIds = JSON.parse(run.daqJobIds) as string[];
+                } catch (e) {
+                  console.error('Failed to parse expectedJobIds:', e);
+                }
+              }
+            }
+
+            const allActive =
+              expectedJobIds.length > 0 &&
+              expectedJobIds.every((id) => activeJobIds.includes(id));
+            if (
+              !allActive &&
+              expectedJobIds.length > 0 &&
+              new Date().getTime() - run.startTime.getTime() >
+                RUN_CONTROLLER_RUN_ALIVE_AFTER_MS
+            ) {
+              shouldStop = true;
+              stopReason = `jobs no longer active (expected: ${expectedJobIds.join(', ')}, active: ${activeJobIds.join(', ')})`;
+            }
+          } catch (e) {
+            // Can't reach client, skip liveness check for this run
+            console.warn(
+              `[checkAndStopExpiredRuns] Failed to verify run ${run.id} liveness:`,
+              e,
+            );
+          }
+        }
+
+        if (shouldStop) {
+          console.log(
+            `[checkAndStopExpiredRuns] Auto-stopping run ${run.id}: ${stopReason}`,
+          );
+          if (run.clientId) {
+            try {
+              await this.stopRun(run.id, run.clientId);
+            } catch (e) {
+              console.error(
+                `[checkAndStopExpiredRuns] Failed to stop run ${run.id}, marking as COMPLETED anyway:`,
+                e,
+              );
+              // Mark as COMPLETED directly if stopRun fails
+              await db
+                .update(runs)
+                .set({ status: 'COMPLETED', endTime: new Date() })
+                .where(eq(runs.id, run.id));
+            }
+          } else {
+            // No clientId, just mark as completed
+            await db
+              .update(runs)
+              .set({ status: 'COMPLETED', endTime: new Date() })
+              .where(eq(runs.id, run.id));
+          }
+        }
+      } catch (e) {
+        console.error(
+          `[checkAndStopExpiredRuns] Unexpected error for run ${run.id}:`,
+          e,
+        );
+      }
+    }
+  }
+
   static async startRun(
     description: string,
     clientId: string,
