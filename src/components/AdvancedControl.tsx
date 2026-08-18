@@ -872,7 +872,7 @@ const AdvancedControl = () => {
                 ))}
                 {filteredLogs.length === 0 && (
                   <span className="text-muted">
-                    {activeLogSource.length === 0 ? 'No logs received.' : 'No logs match the current filters.'}
+                    {logs.length === 0 ? 'No logs received.' : 'No logs match the current filters.'}
                   </span>
                 )}
               </div>
