@@ -43,8 +43,7 @@ const AdvancedControl = () => {
   const [appliedTimeFrom, setAppliedTimeFrom] = useState('');
   const [appliedDateTo, setAppliedDateTo] = useState('');
   const [appliedTimeTo, setAppliedTimeTo] = useState('');
-  // Test/Mock logs state to verify filtering behavior
-  const [testLogs, setTestLogs] = useState<LogEntry[]>([]);
+
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   const ALL_LEVELS = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'];
@@ -104,11 +103,6 @@ const AdvancedControl = () => {
     }
     return null;
   };
-
-  const activeLogSource = useMemo(() => {
-    return testLogs.length > 0 ? testLogs : logs;
-  }, [testLogs, logs]);
-
   const hasDateOrTimeFilter = Boolean(
     appliedDateFrom || appliedTimeFrom || appliedDateTo || appliedTimeTo,
   );
@@ -144,7 +138,7 @@ const AdvancedControl = () => {
       timeOfDayToSec = (hh || 0) * 3600 + (mm || 0) * 60 + 59;
     }
 
-    return [...activeLogSource]
+    return [...logs]
       .reverse()
       .filter((l: LogEntry) => {
         if (!l) return false;
@@ -183,7 +177,7 @@ const AdvancedControl = () => {
         return true;
       });
   }, [
-    activeLogSource,
+    logs,
     logSearch,
     logLevels,
     hasDateOrTimeFilter,
@@ -267,117 +261,6 @@ const AdvancedControl = () => {
     }
   };
 
-  const handleGenerateTestLogs = () => {
-    const samples: LogEntry[] = [
-      {
-        type: 'log',
-        level: 'INFO',
-        module: 'DAQJobN1081B(30)',
-        message: 'Connected!',
-        timestamp: '2026-08-16T21:09:56.497777',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'INFO',
-        module: 'DAQJobN1081B(30)',
-        message: 'Connecting to the device...',
-        timestamp: '2026-08-16T21:09:56.457199',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'ERROR',
-        module: 'Supervisor(enrg_cpu)',
-        message: 'Error on DAQJobN1081B.start(): [Errno 111] Connection refused Traceback (most recent call last): File "/home/daq/enrgdaq/src/enrgdaq/daq/base.py", line 617, in start instance.start() ConnectionRefusedError: [Errno 111] Connection refused',
-        timestamp: '2026-08-16T21:09:54.309834',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'INFO',
-        module: 'DAQJobN1081B(29)',
-        message: 'Connecting to the device...',
-        timestamp: '2026-08-16T21:09:54.307531',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'ERROR',
-        module: 'Supervisor(enrg_cpu)',
-        message: 'Error on DAQJobN1081B.start(): Connection to remote host was lost. websocket._exceptions.WebSocketConnectionClosedException: Connection to remote host was lost.',
-        timestamp: '2026-08-16T21:09:43.627289',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'INFO',
-        module: 'DAQJobN1081B(24)',
-        message: 'Connected!',
-        timestamp: '2026-08-16T03:31:02.556585',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'INFO',
-        module: 'DAQJobN1081B(24)',
-        message: 'Connecting to the device...',
-        timestamp: '2026-08-16T03:31:02.517192',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'ERROR',
-        module: 'Supervisor(enrg_cpu)',
-        message: 'Error on DAQJobN1081B.start(): [Errno 111] Connection refused',
-        timestamp: '2026-08-16T03:31:00.374059',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'ERROR',
-        module: 'Supervisor(enrg_cpu)',
-        message: 'Connection to remote host was lost. websocket._exceptions.WebSocketConnectionClosedException',
-        timestamp: '2026-08-16T03:30:49.699500',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'INFO',
-        module: 'DAQJobN1081B(18)',
-        message: 'Connected!',
-        timestamp: '2026-08-15T09:52:29.386645',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-      {
-        type: 'log',
-        level: 'INFO',
-        module: 'DAQJobN1081B(18)',
-        message: 'Connecting to the device...',
-        timestamp: '2026-08-15T09:52:29.345714',
-        client_id: selectedClient || 'client-1',
-        req_id: null,
-      },
-    ];
-
-    setTestLogs(samples);
-    toast.success('Gerçek DAQ log örnekleri yüklendi! Filtreleri test edebilirsiniz.');
-  };
-
-  const handleClearTestLogs = () => {
-    setTestLogs([]);
-    toast.success('Test logları temizlendi, canlı akışa dönüldü.');
-  };
 
   // Fetch templates on mount
   useEffect(() => {
@@ -942,15 +825,7 @@ const AdvancedControl = () => {
                     <i className="fa-solid fa-xmark"></i>
                   </button>
                 )}
-                <button
-                  className={`btn btn-sm ${testLogs.length > 0 ? 'btn-warning text-dark fw-semibold' : 'btn-outline-info'} py-0 px-2`}
-                  style={{ fontSize: '0.70rem' }}
-                  onClick={testLogs.length > 0 ? handleClearTestLogs : handleGenerateTestLogs}
-                  title={testLogs.length > 0 ? "Clear test logs and return to live DAQ logs" : "Load 10 realistic test logs to test filtering"}
-                >
-                  <i className={`fa-solid ${testLogs.length > 0 ? 'fa-xmark' : 'fa-flask'} me-1`}></i>
-                  {testLogs.length > 0 ? 'Clear Test' : 'Test Logs'}
-                </button>
+
               </div>
 
               {/* Filter stats & Reset */}
@@ -960,13 +835,8 @@ const AdvancedControl = () => {
               >
                 <div>
                   <span>
-                    Showing <strong>{filteredLogs.length}</strong> / <strong>{activeLogSource.length}</strong> logs
+                    Showing <strong>{filteredLogs.length}</strong> / <strong>{logs.length}</strong> logs
                   </span>
-                  {testLogs.length > 0 && (
-                    <span className="badge bg-warning text-dark ms-2" style={{ fontSize: '0.62rem' }}>
-                      <i className="fa-solid fa-vial me-1"></i>Test Mode ({testLogs.length})
-                    </span>
-                  )}
                 </div>
                 {(logSearch || logLevels.length > 0 || hasDateOrTimeFilter) && (
                   <button
