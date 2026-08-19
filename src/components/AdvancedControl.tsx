@@ -213,7 +213,7 @@ const AdvancedControl = () => {
 
   const handleExportLogs = (format: 'txt' | 'json') => {
     if (filteredLogs.length === 0) {
-      toast.error('Dışa aktarılacak log bulunamadı.');
+      toast.error('No logs to export.');
       return;
     }
 
@@ -242,12 +242,12 @@ const AdvancedControl = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast.success(`${filteredLogs.length} adet log ${format.toUpperCase()} formatında indirildi.`);
+    toast.success(`${filteredLogs.length} log${filteredLogs.length !== 1 ? 's' : ''} exported as ${format.toUpperCase()}.`);
   };
 
   const handleCopyLogs = async () => {
     if (filteredLogs.length === 0) {
-      toast.error('Kopyalanacak log bulunamadı.');
+      toast.error('No logs to copy.');
       return;
     }
     const text = filteredLogs
@@ -255,9 +255,9 @@ const AdvancedControl = () => {
       .join('\n');
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(`${filteredLogs.length} adet log panoya kopyalandı!`);
+      toast.success(`${filteredLogs.length} log${filteredLogs.length !== 1 ? 's' : ''} copied to clipboard!`);
     } catch {
-      toast.error('Loglar panoya kopyalanamadı.');
+      toast.error('Failed to copy logs to clipboard.');
     }
   };
 
@@ -542,14 +542,12 @@ const AdvancedControl = () => {
         <div className="col-lg-7">
           <div className="card h-100 border-secondary bg-dark">
             <div
-              className={`card-header fw-bold border-secondary ${
-                isEditing ? 'bg-warning text-dark' : 'bg-dark'
-              }`}
+              className={`card-header fw-bold border-secondary ${isEditing ? 'bg-warning text-dark' : 'bg-dark'
+                }`}
             >
               <i
-                className={`fa-solid ${
-                  isEditing ? 'fa-pen-to-square' : 'fa-code'
-                } me-2`}
+                className={`fa-solid ${isEditing ? 'fa-pen-to-square' : 'fa-code'
+                  } me-2`}
               ></i>
               {isEditing ? 'Editing Run Configuration' : 'Manual Job Launcher'}
             </div>
@@ -616,9 +614,8 @@ const AdvancedControl = () => {
                 ) : (
                   <>
                     <i
-                      className={`fa-solid ${
-                        isEditing ? 'fa-rotate' : 'fa-terminal'
-                      } me-2`}
+                      className={`fa-solid ${isEditing ? 'fa-rotate' : 'fa-terminal'
+                        } me-2`}
                     ></i>
                     {isEditing ? 'Terminate & Restart' : 'Execute'}
                   </>
@@ -635,13 +632,14 @@ const AdvancedControl = () => {
               <div className="d-flex align-items-center">
                 <i className="fa-solid fa-list-ul me-2"></i>Supervisor Logs
               </div>
+
               <div className="d-flex align-items-center gap-1">
                 <button
                   type="button"
                   className="btn btn-xs btn-outline-secondary px-2 text-light d-inline-flex align-items-center justify-content-center"
                   style={{ fontSize: '0.72rem', height: '24px', lineHeight: 1 }}
                   onClick={handleCopyLogs}
-                  title="Filtrelenmiş logları panoya kopyala"
+                  title="Copy filtered logs to clipboard"
                   disabled={filteredLogs.length === 0}
                 >
                   <i className="fa-solid fa-copy me-1"></i>Copy
@@ -652,7 +650,7 @@ const AdvancedControl = () => {
                     className={`btn btn-xs ${showExportMenu ? 'btn-secondary text-white' : 'btn-outline-secondary text-light'} px-2 d-inline-flex align-items-center justify-content-center`}
                     style={{ fontSize: '0.72rem', height: '24px', lineHeight: 1 }}
                     onClick={() => setShowExportMenu((prev) => !prev)}
-                    title="Logları dışa aktar (.log veya .json)"
+                    title="Export logs (.log or .json)"
                     disabled={filteredLogs.length === 0}
                   >
                     <i className="fa-solid fa-download me-1"></i>Export<i className="fa-solid fa-caret-down ms-1" style={{ fontSize: '0.65rem' }}></i>
@@ -732,9 +730,8 @@ const AdvancedControl = () => {
                   return (
                     <button
                       key={lvl}
-                      className={`btn btn-xs py-0 px-2 ${
-                        active ? `btn-${color}` : `btn-outline-${color}`
-                      }`}
+                      className={`btn btn-xs py-0 px-2 ${active ? `btn-${color}` : `btn-outline-${color}`
+                        }`}
                       style={{ fontSize: '0.7rem' }}
                       onClick={() => toggleLevel(lvl)}
                       title={active ? `Hide ${lvl}` : `Show only ${lvl}`}
@@ -768,6 +765,7 @@ const AdvancedControl = () => {
                       onChange={(e) => setLogDateFrom(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleApplyDateFilter(); }}
                     />
+                    <i></i>
                     <input
                       type="time"
                       className="form-control form-control-sm bg-dark text-light border-secondary px-1"

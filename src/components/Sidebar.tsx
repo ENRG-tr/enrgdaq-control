@@ -24,9 +24,8 @@ const SidebarLink = ({
   return (
     <Link
       href={isLocked ? '#' : href}
-      className={`nav-link d-flex align-items-center justify-content-between px-3 py-2 mb-1 rounded-2 ${
-        isActive ? 'active text-white bg-primary shadow-sm' : 'text-muted'
-      }`}
+      className={`nav-link d-flex align-items-center justify-content-between px-3 py-2 mb-1 rounded-2 ${isActive ? 'active text-white bg-primary shadow-sm' : 'text-muted'
+        }`}
       onClick={() => {
         if (isLocked) {
           toast.error('You must have admin privileges to access this section!');
@@ -76,6 +75,7 @@ export default function Sidebar() {
         >
           Advanced
         </div>
+
 
         <SidebarLink
           href="/advanced"

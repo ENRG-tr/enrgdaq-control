@@ -10,6 +10,7 @@ const adminPaths = [
   '/api/templates',
   '/api/run-types',
   '/api/webhooks',
+  '/api/status',
 ];
 
 export async function middleware(request: NextRequest) {
