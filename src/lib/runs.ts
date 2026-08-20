@@ -640,7 +640,9 @@ export class RunController {
     // Dispatch webhook
     WebhookController.dispatchRunEvent('run_stopped', {
       id: runId,
+      description: run.description,
       clientId,
+      runTypeId: run.runTypeId,
       jobNames,
     }).catch((e: any) => console.error('Failed to dispatch run webhook:', e));
   }
