@@ -110,7 +110,13 @@ export function RunRow({
         <td>
           <span
             className={`badge ${
-              run.status === 'RUNNING' ? 'bg-success' : 'bg-secondary'
+              run.status === 'RUNNING'
+                ? 'bg-success'
+                : run.status === 'FAILED'
+                  ? 'bg-danger'
+                  : run.status === 'PENDING'
+                    ? 'bg-warning text-dark'
+                    : 'bg-secondary'
             }`}
           >
             {run.status}

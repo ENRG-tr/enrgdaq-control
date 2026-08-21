@@ -160,15 +160,23 @@ export const useStore = create<AppState>((set, get) => ({
   ) => {
     const { selectedClient } = get();
     if (!selectedClient) throw new Error('No client selected');
-    await API.startRun(
-      description,
-      selectedClient,
-      runTypeId,
-      parameterValues,
-      scheduledEndTime,
-    );
-    set({ runsPage: 1 }); // Reset to first page on new run
-    await get().fetchRuns();
+    try {
+      await API.startRun(
+        description,
+        selectedClient,
+        runTypeId,
+        parameterValues,
+        scheduledEndTime,
+      );
+      set({ runsPage: 1 }); // Reset to first page on new run
+      await get().fetchRuns();
+    } catch (e) {
+      // Refresh runs so a FAILED run (if created) becomes visible immediately
+      // instead of staying stuck on stale PENDING until next poll.
+      set({ runsPage: 1 });
+      await get().fetchRuns();
+      throw e;
+    }
   },
 
   stopRun: async () => {

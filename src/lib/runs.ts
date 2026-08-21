@@ -9,7 +9,7 @@ import {
   runMetadata,
   type Run,
 } from './schema';
-import { eq, desc, and, count, inArray } from 'drizzle-orm';
+import { eq, desc, and, count, inArray, lt } from 'drizzle-orm';
 import { ENRGDAQClient } from './enrgdaq-client';
 import { MessageController } from './messages';
 import { WebhookController } from './webhooks';
@@ -17,10 +17,26 @@ import { WebhookController } from './webhooks';
 const RUN_CONTROLLER_RUN_ALIVE_AFTER_MS = 2000;
 
 export class RunController {
+  /** Mark stale PENDING runs (older than threshold) as FAILED so they don't stay stuck forever. */
+  private static async cleanupStalePendingRuns(): Promise<void> {
+    const STALE_PENDING_MS = 60_000; // 1 minute
+    const cutoff = new Date(Date.now() - STALE_PENDING_MS);
+    try {
+      await db
+        .update(runs)
+        .set({ status: 'FAILED', endTime: new Date() })
+        .where(and(eq(runs.status, 'PENDING'), lt(runs.startTime, cutoff)));
+    } catch (e) {
+      console.warn('[cleanupStalePendingRuns] Failed to cleanup stale PENDING runs:', e);
+    }
+  }
+
   static async getAllRuns(
     limit: number = 20,
     offset: number = 0,
   ): Promise<{ runs: Run[]; total: number; activeRun: Run | null }> {
+    // Auto-heal any stale PENDING runs that were left behind by a failed start
+    await this.cleanupStalePendingRuns();
     // Check liveness of any locally RUNNING run before returning
     const activeRun = await this.getActiveRun(); // This triggers the check
 
@@ -150,6 +166,7 @@ export class RunController {
    * and also by the existing getActiveRun flow via getAllRuns.
    */
   static async checkAndStopExpiredRuns(): Promise<void> {
+    await this.cleanupStalePendingRuns();
     const runningRuns = await db
       .select()
       .from(runs)
@@ -344,21 +361,51 @@ export class RunController {
         daqJobIds: jobNames,
       };
     } catch (e) {
-      // Cleanup: delete the PENDING run entry on failure
-      console.error('[startRun] Failed, cleaning up run entry:', e);
-      await db.delete(runs).where(eq(runs.id, run.id));
+      // Mark the PENDING run as FAILED instead of leaving it stuck at PENDING.
+      // Previously we tried to DELETE the row, but that fails with FK violation
+      // when run_metadata was already inserted, leaving PENDING forever.
+      console.error('[startRun] Failed, marking run as FAILED:', e);
+      try {
+        await db
+          .update(runs)
+          .set({ status: 'FAILED', endTime: new Date() })
+          .where(eq(runs.id, run.id));
+      } catch (updateErr) {
+        console.error('[startRun] Failed to mark run as FAILED:', updateErr);
+        // Fallback: try to hard-delete including dependent rows
+        try {
+          await db.delete(runMetadata).where(eq(runMetadata.runId, run.id));
+          await db
+            .delete(runParameterValues)
+            .where(eq(runParameterValues.runId, run.id));
+          await db.delete(runs).where(eq(runs.id, run.id));
+        } catch (deleteErr) {
+          console.error('[startRun] Failed to cleanup PENDING run entry:', deleteErr);
+        }
+      }
       throw e;
     }
   }
 
   /**
    * Ensures no run is currently active. Throws if one exists.
+   * Also considers recent PENDING runs as active to avoid concurrent starts,
+   * but first heals any stale PENDING left from previous failures.
    */
   private static async ensureNoActiveRun(): Promise<void> {
     console.log('[startRun] Checking for existing active run...');
+    await this.cleanupStalePendingRuns();
     const existing = await this.getActiveRun();
     if (existing) {
       throw new Error('A run is already in progress');
+    }
+    const pending = await db
+      .select({ id: runs.id })
+      .from(runs)
+      .where(eq(runs.status, 'PENDING'))
+      .limit(1);
+    if (pending.length > 0) {
+      throw new Error('A run is already being started (PENDING)');
     }
     console.log('[startRun] No active run found.');
   }
