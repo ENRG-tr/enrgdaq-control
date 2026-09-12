@@ -202,6 +202,25 @@ export const API = {
     return data;
   },
 
+  async exportRunsToExcel(): Promise<void> {
+    const response = await api.get('/runs/export', {
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const now = new Date().toISOString().split('T')[0];
+    link.setAttribute('download', `runs_history_export_${now}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode?.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
+
+
   // Templates
   async getTemplates(): Promise<Template[]> {
     const { data } = await api.get('/templates');

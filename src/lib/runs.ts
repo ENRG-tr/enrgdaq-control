@@ -1,6 +1,7 @@
 import { db } from './db';
 import {
   runs,
+  runTypes,
   templates,
   templateRunTypes,
   templateParameters,
@@ -14,7 +15,25 @@ import { ENRGDAQClient } from './enrgdaq-client';
 import { MessageController } from './messages';
 import { WebhookController } from './webhooks';
 
+export interface DetailedRunParameter {
+  name: string;
+  displayName: string;
+  type: string;
+  value: string;
+}
+
+export interface DetailedRun extends Run {
+  runTypeName: string;
+  metadata: {
+    details: string | null;
+    updatedBy: string | null;
+    updatedAt: Date | null;
+  } | null;
+  parameters: DetailedRunParameter[];
+}
+
 const RUN_CONTROLLER_RUN_ALIVE_AFTER_MS = 2000;
+
 
 export class RunController {
   /** Mark stale PENDING runs (older than threshold) as FAILED so they don't stay stuck forever. */
@@ -79,7 +98,83 @@ export class RunController {
     return { runs: runsWithMetadata, total, activeRun };
   }
 
+  static async getAllRunsDetailed(): Promise<DetailedRun[]> {
+    const allRuns = await db
+      .select()
+      .from(runs)
+      .where(eq(runs.isDeleted, false))
+      .orderBy(desc(runs.id));
+
+    if (allRuns.length === 0) {
+      return [];
+    }
+
+    const runIds = allRuns.map((r) => r.id);
+
+    // Fetch all run types
+    const allRunTypes = await db.select().from(runTypes);
+    const runTypeMap = new Map(allRunTypes.map((rt) => [rt.id, rt.name]));
+
+    // Fetch all metadata for these runs
+    const metadataRecords = await db
+      .select({
+        runId: runMetadata.runId,
+        details: runMetadata.details,
+        updatedBy: runMetadata.updatedBy,
+        updatedAt: runMetadata.updatedAt,
+      })
+      .from(runMetadata)
+      .where(inArray(runMetadata.runId, runIds));
+
+    const metadataMap = new Map(
+      metadataRecords.map((m) => [
+        m.runId,
+        {
+          details: m.details,
+          updatedBy: m.updatedBy,
+          updatedAt: m.updatedAt,
+        },
+      ]),
+    );
+
+    // Fetch all parameters for these runs
+    const paramRecords = await db
+      .select({
+        runId: runParameterValues.runId,
+        name: templateParameters.name,
+        displayName: templateParameters.displayName,
+        type: templateParameters.type,
+        value: runParameterValues.value,
+      })
+      .from(runParameterValues)
+      .innerJoin(
+        templateParameters,
+        eq(runParameterValues.parameterId, templateParameters.id),
+      )
+      .where(inArray(runParameterValues.runId, runIds));
+
+    const paramsByRunId = new Map<number, DetailedRunParameter[]>();
+    for (const p of paramRecords) {
+      const list = paramsByRunId.get(p.runId) || [];
+      list.push({
+        name: p.name,
+        displayName: p.displayName,
+        type: p.type,
+        value: p.value,
+      });
+      paramsByRunId.set(p.runId, list);
+    }
+
+    return allRuns.map((r) => ({
+      ...r,
+      runTypeName: (r.runTypeId ? runTypeMap.get(r.runTypeId) : undefined) || 'Generic',
+      metadata: metadataMap.get(r.id) || null,
+      parameters: paramsByRunId.get(r.id) || [],
+    }));
+  }
+
   static async getActiveRun(): Promise<Run | null> {
+
     const result = await db
       .select()
       .from(runs)
