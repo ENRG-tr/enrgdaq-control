@@ -34,8 +34,26 @@ const RunDashboard = () => {
   const [selectedRunTypeId, setSelectedRunTypeId] = useState<number | ''>('');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    const toastId = toast.loading('Exporting runs history to Excel...');
+    try {
+      await API.exportRunsToExcel();
+      toast.success('Runs history exported to Excel successfully!', {
+        id: toastId,
+      });
+    } catch (e: any) {
+      console.error('Failed to export runs to Excel:', e);
+      toast.error('Failed to export runs to Excel', { id: toastId });
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Parameter state (aggregated from templates)
+
   const [parameters, setParameters] = useState<AggregatedParameter[]>([]);
   const [parameterValues, setParameterValues] = useState<
     Record<string, string>
@@ -757,7 +775,31 @@ const RunDashboard = () => {
           <span>
             <i className="fa-solid fa-clock-rotate-left me-2"></i>Run History
           </span>
-          <span className="badge bg-secondary">{runsTotal} Runs</span>
+          <div className="d-flex align-items-center gap-2">
+            <button
+              className="btn btn-sm btn-outline-success d-flex align-items-center"
+              onClick={handleExportExcel}
+              disabled={isExporting}
+              title="Export all runs with full details to Excel (.xlsx)"
+            >
+              {isExporting ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-1"
+                    role="status"
+                    aria-hidden="true"
+                  ></span>
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-file-excel me-1"></i>
+                  Export to Excel
+                </>
+              )}
+            </button>
+            <span className="badge bg-secondary">{runsTotal} Runs</span>
+          </div>
         </div>
         <div className="card-body p-0">
           <table className="table table-dark table-hover mb-0">
