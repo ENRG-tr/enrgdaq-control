@@ -93,7 +93,16 @@ export function RunRow({
   return (
     <React.Fragment>
       <tr className={run.status === 'RUNNING' ? 'table-active' : ''}>
-        <td className="ps-4 font-monospace">#{run.id}</td>
+        <td className="ps-4 font-monospace">
+          <a
+            href={`/enrgdaq-out/runs/${run.id}/`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Open run ${run.id} output`}
+          >
+            #{run.id}
+          </a>
+        </td>
         <td>
           {run.runTypeId ? (
             <span className="badge bg-info text-dark">{runTypeName}</span>

@@ -84,6 +84,11 @@ const api = axios.create({
 });
 
 export const API = {
+  async getVersion(): Promise<{ commitHash: string }> {
+    const { data } = await api.get('/version');
+    return data;
+  },
+
   async getAuthStatus(): Promise<{
     role: 'admin' | 'user' | 'visitor';
     isAdmin: boolean;

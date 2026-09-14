@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useStore } from '@/lib/store';
+import { API } from '@/lib/api-client';
 
 const SidebarLink = ({
   href,
@@ -46,10 +47,17 @@ const SidebarLink = ({
 
 export default function Sidebar() {
   const { isAdmin, checkAuthStatus } = useStore();
+  const [commitHash, setCommitHash] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuthStatus();
   }, [checkAuthStatus]);
+
+  useEffect(() => {
+    API.getVersion()
+      .then((v) => setCommitHash(v.commitHash))
+      .catch(() => setCommitHash('unknown'));
+  }, []);
 
   return (
     <div
@@ -107,6 +115,15 @@ export default function Sidebar() {
         <div>
           <i className="fa-solid fa-server me-2"></i>ENRGDAQ Control
         </div>
+        {commitHash && (
+          <div
+            className="font-monospace text-muted opacity-75 mt-1"
+            style={{ fontSize: '0.7rem', paddingLeft: '1.6rem' }}
+            title={`Commit ${commitHash}`}
+          >
+            {commitHash}
+          </div>
+        )}
       </div>
     </div>
   );
