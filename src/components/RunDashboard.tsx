@@ -34,6 +34,8 @@ const RunDashboard = () => {
   const [selectedRunTypeId, setSelectedRunTypeId] = useState<number | ''>('');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [stopConfirmation, setStopConfirmation] = useState('');
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExportExcel = async () => {
@@ -135,7 +137,6 @@ const RunDashboard = () => {
     (rt) =>
       rt.id === (selectedRunTypeId === '' ? -1 : Number(selectedRunTypeId)),
   );
-
   const filteredClients = React.useMemo(() => {
     if (
       !activeRunType ||
@@ -259,12 +260,19 @@ const RunDashboard = () => {
     return () => clearInterval(interval);
   }, [activeRun?.scheduledEndTime, activeRun, stopRun]);
 
+  const requestStop = () => {
+    if (!activeRun) return;
+    setStopConfirmation('');
+    setShowStopConfirm(true);
+  };
+
   const handleStop = async () => {
     if (!activeRun) return;
     setIsStopping(true);
     try {
       await stopRun();
       toast.success(`Run #${activeRun.id} stopped successfully`);
+      setShowStopConfirm(false);
     } catch (e: unknown) {
       const error = e as { message?: string };
       console.error('Failed to stop run:', e);
@@ -431,7 +439,7 @@ const RunDashboard = () => {
 
                   <div className="mt-auto pt-3">
                     <button
-                      onClick={handleStop}
+                      onClick={requestStop}
                       className="btn btn-danger btn-lg w-100 py-3 fw-bold text-uppercase d-flex justify-content-center align-items-center gap-2 shadow-sm hover-shadow"
                       disabled={isStopping || !canControlRuns}
                       style={{ letterSpacing: '1px' }}
@@ -822,6 +830,7 @@ const RunDashboard = () => {
                   runTypeName={getRunTypeName(run.runTypeId)}
                   duration={formatDuration(run.startTime, run.endTime)}
                   isAdmin={isAdmin}
+                  canViewOutput={canControlRuns}
                   onDelete={handleDelete}
                 />
               ))}
@@ -859,6 +868,113 @@ const RunDashboard = () => {
           )}
         </div>
       </div>
+
+      {showStopConfirm && activeRun && (
+        <div
+          className="modal d-block"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="stop-run-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isStopping) {
+              setShowStopConfirm(false);
+            }
+          }}
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)', zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content bg-dark border-danger">
+              <div className="modal-header border-danger">
+                <h5 className="modal-title text-danger" id="stop-run-title">
+                  <i className="fa-solid fa-triangle-exclamation me-2"></i>
+                  Stop acquisition?
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  aria-label="Close"
+                  onClick={() => setShowStopConfirm(false)}
+                  disabled={isStopping}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <p className="text-light">
+                  This will send a stop command to the active acquisition. This
+                  action may interrupt data collection.
+                </p>
+                <dl className="row mb-4 small">
+                  <dt className="col-4 text-muted">Run ID</dt>
+                  <dd className="col-8 text-light font-monospace">
+                    #{activeRun.id}
+                  </dd>
+                  <dt className="col-4 text-muted">Run type</dt>
+                  <dd className="col-8 text-light">
+                    {getRunTypeName(activeRun.runTypeId)}
+                  </dd>
+                  <dt className="col-4 text-muted">Started</dt>
+                  <dd className="col-8 text-light">
+                    {formatDate(activeRun.startTime)}
+                  </dd>
+                  <dt className="col-4 text-muted">Elapsed</dt>
+                  <dd className="col-8 text-light">
+                    {formatDuration(activeRun.startTime, activeRun.endTime)}
+                  </dd>
+                </dl>
+
+                <div>
+                  <label
+                    htmlFor="stop-run-confirmation"
+                    className="form-label text-warning"
+                  >
+                    Type the run ID, <strong>{activeRun.id}</strong>, to
+                    continue.
+                  </label>
+                  <input
+                    id="stop-run-confirmation"
+                    type="text"
+                    className="form-control bg-dark text-light border-warning"
+                    value={stopConfirmation}
+                    onChange={(event) => setStopConfirmation(event.target.value)}
+                    autoFocus
+                    autoComplete="off"
+                    disabled={isStopping}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer border-danger">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => setShowStopConfirm(false)}
+                  disabled={isStopping}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleStop}
+                  disabled={
+                    isStopping ||
+                    stopConfirmation.trim() !== String(activeRun.id)
+                  }
+                >
+                  {isStopping ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      Stopping...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fa-solid fa-stop me-2"></i>Stop Run
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -42,6 +42,21 @@ export interface RunType {
   requiredTags: string[] | null;
 }
 
+export interface RunOutputEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size: number;
+  modifiedAt: string;
+}
+
+export interface RunOutputListing {
+  runId: number;
+  path: string;
+  entries: RunOutputEntry[];
+  truncated: boolean;
+}
+
 // Aggregated parameter from templates, with optional run type default
 export interface AggregatedParameter {
   id: number;
@@ -87,6 +102,21 @@ export const API = {
   async getVersion(): Promise<{ commitHash: string }> {
     const { data } = await api.get('/version');
     return data;
+  },
+
+  async getRunFiles(
+    runId: number,
+    relativePath = '',
+  ): Promise<RunOutputListing> {
+    const { data } = await api.get(`/runs/${runId}/files`, {
+      params: { path: relativePath },
+    });
+    return data;
+  },
+
+  getRunFileUrl(runId: number, relativePath: string): string {
+    const params = new URLSearchParams({ path: relativePath, download: '1' });
+    return `${basePath}/api/runs/${runId}/files?${params.toString()}`;
   },
 
   async getAuthStatus(): Promise<{

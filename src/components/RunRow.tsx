@@ -5,6 +5,7 @@ import { type Run } from '@/lib/types';
 import { useStore } from '@/lib/store';
 import { formatDate } from '@/lib/date-utils';
 import { API } from '@/lib/api-client';
+import { RunOutputBrowser } from './RunOutputBrowser';
 import 'react-quill-new/dist/quill.snow.css';
 
 const ReactQuill = dynamic(
@@ -24,6 +25,7 @@ interface RunRowProps {
   runTypeName: string;
   duration: string;
   isAdmin: boolean;
+  canViewOutput: boolean;
   onDelete: (runId: number, status: string) => void;
 }
 
@@ -32,9 +34,11 @@ export function RunRow({
   runTypeName,
   duration,
   isAdmin,
+  canViewOutput,
   onDelete,
 }: RunRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isFilesExpanded, setIsFilesExpanded] = useState(false);
   const [isEditingMetadata, setIsEditingMetadata] = useState(false);
   const [editDetails, setEditDetails] = useState('');
   const [lastUpdatedBy, setLastUpdatedBy] = useState('');
@@ -145,6 +149,20 @@ export function RunRow({
               }`}
             ></i>
           </button>
+          {canViewOutput && (
+            <button
+              className="btn btn-sm btn-outline-warning me-2"
+              onClick={() => setIsFilesExpanded((expanded) => !expanded)}
+              title="Browse Run Output"
+              aria-label={`Browse output files for run ${run.id}`}
+            >
+              <i
+                className={`fa-solid ${
+                  isFilesExpanded ? 'fa-chevron-up' : 'fa-folder-open'
+                }`}
+              ></i>
+            </button>
+          )}
           {isAdmin && (
             <button
               className="btn btn-sm btn-outline-danger"
@@ -268,6 +286,19 @@ export function RunRow({
                   </div>
                 </>
               )}
+            </div>
+          </td>
+        </tr>
+      )}
+
+      {isFilesExpanded && (
+        <tr className="bg-dark border-secondary">
+          <td colSpan={7} className="p-0">
+            <div
+              className="p-4 border-bottom border-secondary shadow-inner"
+              style={{ backgroundColor: '#1a1d20' }}
+            >
+              <RunOutputBrowser runId={run.id} />
             </div>
           </td>
         </tr>
