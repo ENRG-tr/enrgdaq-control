@@ -7,6 +7,15 @@ import { RunRow } from './RunRow';
 import { formatDate } from '@/lib/date-utils';
 
 type TimerMode = 'none' | 'duration' | 'datetime';
+type RunSortOrder = 'newest' | 'oldest' | 'id-desc' | 'id-asc';
+type PollingTimestamp = Date | string | number | null | undefined;
+type StoreWithPollingTimestamp = Omit<
+  ReturnType<typeof useStore.getState>,
+  'lastUpdatedAt' | 'pollingError'
+> & {
+  lastUpdatedAt?: PollingTimestamp;
+  pollingError?: string | null;
+};
 
 const RunDashboard = () => {
   const {
@@ -15,6 +24,7 @@ const RunDashboard = () => {
     startRun,
     stopRun,
     deleteRun,
+    fetchRuns,
     selectedClient,
     clientOnline,
     clients,
@@ -30,13 +40,38 @@ const RunDashboard = () => {
     checkAuthStatus,
   } = useStore();
 
+  // The polling store may expose a freshness timestamp. Keep a local
+  // fallback for stores that do not.
+  const pollingTimestamp = useStore(
+    (state) => (state as StoreWithPollingTimestamp).lastUpdatedAt ?? null,
+  );
+  const hasPollingTimestamp = useStore((state) =>
+    Object.prototype.hasOwnProperty.call(state, 'lastUpdatedAt'),
+  );
+  const pollingError = useStore(
+    (state) => (state as StoreWithPollingTimestamp).pollingError ?? null,
+  );
+
   const [description, setDescription] = useState('');
   const [selectedRunTypeId, setSelectedRunTypeId] = useState<number | ''>('');
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [deletingRunId, setDeletingRunId] = useState<number | null>(null);
+  const [isLoadingRunTypes, setIsLoadingRunTypes] = useState(true);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [stopConfirmation, setStopConfirmation] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+
+  // Run history controls operate on the page already held by the store.
+  const [runHistorySearch, setRunHistorySearch] = useState('');
+  const [runStatusFilter, setRunStatusFilter] = useState('all');
+  const [runSortOrder, setRunSortOrder] = useState<RunSortOrder>('newest');
+  const [isLoadingRuns, setIsLoadingRuns] = useState(true);
+  const [localRunsUpdatedAt, setLocalRunsUpdatedAt] = useState<number | null>(
+    null,
+  );
+  const pendingRunsPage = useRef<number | null>(null);
+  const previousRuns = useRef(runs);
 
   const handleExportExcel = async () => {
     setIsExporting(true);
@@ -96,9 +131,54 @@ const RunDashboard = () => {
   }, [timerMode, durationHours, durationMinutes, scheduledDateTime]);
 
   useEffect(() => {
-    fetchRunTypes();
+    fetchRunTypes().finally(() => setIsLoadingRunTypes(false));
     checkAuthStatus();
   }, [fetchRunTypes, checkAuthStatus]);
+
+  // GlobalPoller normally fills this store. Use its freshness state when it
+  // is available, with a direct request as a fallback for older store shapes.
+  useEffect(() => {
+    let isMounted = true;
+    const timestampIsSet =
+      pollingTimestamp !== null &&
+      pollingTimestamp !== undefined &&
+      pollingTimestamp !== 0 &&
+      pollingTimestamp !== '';
+
+    if (hasPollingTimestamp) {
+      if (timestampIsSet || pollingError) {
+        setIsLoadingRuns(false);
+      }
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsLoadingRuns(true);
+    void fetchRuns().finally(() => {
+      if (isMounted) {
+        setIsLoadingRuns(false);
+        setLocalRunsUpdatedAt(Date.now());
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchRuns, hasPollingTimestamp, pollingError, pollingTimestamp]);
+
+  // A page change is initiated by the store action and does not return its
+  // request promise. Detect the new array snapshot to end the page spinner.
+  useEffect(() => {
+    if (runs === previousRuns.current) return;
+
+    previousRuns.current = runs;
+    setLocalRunsUpdatedAt(Date.now());
+    if (pendingRunsPage.current === runsPage) {
+      pendingRunsPage.current = null;
+      setIsLoadingRuns(false);
+    }
+  }, [runs, runsPage]);
 
   // Fetch aggregated parameters when run type changes
   useEffect(() => {
@@ -294,6 +374,7 @@ const RunDashboard = () => {
     if (!window.confirm(`Are you sure you want to delete run #${runId}?`)) {
       return;
     }
+    setDeletingRunId(runId);
     try {
       await deleteRun(runId);
       toast.success(`Run #${runId} deleted successfully`);
@@ -303,12 +384,87 @@ const RunDashboard = () => {
       toast.error(
         'Failed to delete run: ' + (error.message || 'Unknown error'),
       );
+    } finally {
+      setDeletingRunId(null);
     }
   };
 
   const getRunTypeName = (typeId: number | null) => {
     if (!typeId) return '-';
     return runTypes.find((rt) => rt.id === typeId)?.name || 'Unknown';
+  };
+
+  const runStatusOptions = React.useMemo(() => {
+    const commonStatuses = [
+      'RUNNING',
+      'PENDING',
+      'COMPLETED',
+      'STOPPED',
+      'FAILED',
+    ];
+    return Array.from(
+      new Set([...commonStatuses, ...runs.map((run) => run.status)]),
+    );
+  }, [runs]);
+
+  const filteredRuns = React.useMemo(() => {
+    const query = runHistorySearch.trim().toLowerCase();
+    const matchingRuns = runs.filter((run) => {
+      if (runStatusFilter !== 'all' && run.status !== runStatusFilter) {
+        return false;
+      }
+
+      if (!query) return true;
+
+      const searchableText = [
+        run.id,
+        run.description,
+        run.status,
+        run.clientId,
+        getRunTypeName(run.runTypeId),
+      ]
+        .filter((value) => value !== null && value !== undefined)
+        .join(' ')
+        .toLowerCase();
+      return searchableText.includes(query);
+    });
+
+    return matchingRuns.sort((first, second) => {
+      if (runSortOrder === 'id-desc') return second.id - first.id;
+      if (runSortOrder === 'id-asc') return first.id - second.id;
+
+      const firstStart = new Date(first.startTime).getTime();
+      const secondStart = new Date(second.startTime).getTime();
+      return runSortOrder === 'oldest'
+        ? firstStart - secondStart || first.id - second.id
+        : secondStart - firstStart || second.id - first.id;
+    });
+  }, [runs, runHistorySearch, runStatusFilter, runSortOrder, runTypes]);
+
+  const runFiltersActive =
+    runHistorySearch.trim().length > 0 || runStatusFilter !== 'all';
+  const lastRunsUpdate =
+    pollingTimestamp === null ||
+    pollingTimestamp === undefined ||
+    pollingTimestamp === 0 ||
+    pollingTimestamp === ''
+      ? localRunsUpdatedAt
+      : pollingTimestamp;
+
+  const handleRunsPageChange = (page: number) => {
+    const pageCount = Math.ceil(runsTotal / runsLimit);
+    if (
+      isLoadingRuns ||
+      page < 1 ||
+      page > pageCount ||
+      page === runsPage
+    ) {
+      return;
+    }
+
+    pendingRunsPage.current = page;
+    setIsLoadingRuns(true);
+    setRunsPage(page);
   };
 
   const formatDuration = (
@@ -493,10 +649,17 @@ const RunDashboard = () => {
                       e.target.value === '' ? '' : Number(e.target.value),
                     )
                   }
-                  disabled={!!activeRun || !clientOnline || !canControlRuns}
+                  disabled={
+                    !!activeRun ||
+                    !clientOnline ||
+                    !canControlRuns ||
+                    isLoadingRunTypes
+                  }
                 >
                   <option value="" disabled>
-                    -- Select Run Type --
+                    {isLoadingRunTypes
+                      ? 'Loading run types...'
+                      : '-- Select Run Type --'}
                   </option>
                   {runTypes.map((rt) => (
                     <option key={rt.id} value={rt.id}>
@@ -505,7 +668,14 @@ const RunDashboard = () => {
                   ))}
                 </select>
                 <div className="form-text">
-                  Select a run type to use specific templates.
+                  {isLoadingRunTypes ? (
+                    <span>
+                      <span className="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                      Loading run types...
+                    </span>
+                  ) : (
+                    'Select a run type to use specific templates.'
+                  )}
                 </div>
               </div>
 
@@ -779,11 +949,21 @@ const RunDashboard = () => {
 
       {/* History Table */}
       <div className="card border-secondary bg-dark">
-        <div className="card-header fw-bold d-flex justify-content-between align-items-center">
+        <div className="card-header fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
           <span>
             <i className="fa-solid fa-clock-rotate-left me-2"></i>Run History
           </span>
-          <div className="d-flex align-items-center gap-2">
+          <div className="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+            {lastRunsUpdate && (
+              <span
+                className="text-muted small d-none d-md-inline"
+                title={`Run history updated ${formatDate(lastRunsUpdate)}`}
+                aria-live="polite"
+              >
+                <i className="fa-solid fa-rotate me-1"></i>
+                Updated {formatDate(lastRunsUpdate)}
+              </span>
+            )}
             <button
               className="btn btn-sm btn-outline-success d-flex align-items-center"
               onClick={handleExportExcel}
@@ -810,6 +990,108 @@ const RunDashboard = () => {
           </div>
         </div>
         <div className="card-body p-0">
+          <div className="p-3 border-bottom border-secondary">
+            <div className="row g-2 align-items-end">
+              <div className="col-12 col-lg-5">
+                <label
+                  htmlFor="run-history-search"
+                  className="form-label text-muted small mb-1"
+                >
+                  Search runs
+                </label>
+                <div className="input-group input-group-sm">
+                  <span className="input-group-text bg-dark text-muted border-secondary">
+                    <i className="fa-solid fa-magnifying-glass"></i>
+                  </span>
+                  <input
+                    id="run-history-search"
+                    type="search"
+                    className="form-control bg-dark text-light border-secondary"
+                    placeholder="ID, description, type, client..."
+                    value={runHistorySearch}
+                    onChange={(event) =>
+                      setRunHistorySearch(event.target.value)
+                    }
+                  />
+                </div>
+              </div>
+              <div className="col-6 col-lg-3">
+                <label
+                  htmlFor="run-status-filter"
+                  className="form-label text-muted small mb-1"
+                >
+                  Status
+                </label>
+                <select
+                  id="run-status-filter"
+                  className="form-select form-select-sm bg-dark text-light border-secondary"
+                  value={runStatusFilter}
+                  onChange={(event) => setRunStatusFilter(event.target.value)}
+                >
+                  <option value="all">All statuses</option>
+                  {runStatusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-6 col-lg-3">
+                <label
+                  htmlFor="run-sort-order"
+                  className="form-label text-muted small mb-1"
+                >
+                  Sort by
+                </label>
+                <select
+                  id="run-sort-order"
+                  className="form-select form-select-sm bg-dark text-light border-secondary"
+                  value={runSortOrder}
+                  onChange={(event) =>
+                    setRunSortOrder(event.target.value as RunSortOrder)
+                  }
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="id-desc">Run ID (high to low)</option>
+                  <option value="id-asc">Run ID (low to high)</option>
+                </select>
+              </div>
+              <div className="col-12 col-lg-1 d-flex">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary w-100"
+                  onClick={() => {
+                    setRunHistorySearch('');
+                    setRunStatusFilter('all');
+                    setRunSortOrder('newest');
+                  }}
+                  disabled={!runFiltersActive && runSortOrder === 'newest'}
+                  title="Clear run history filters"
+                >
+                  <i className="fa-solid fa-xmark me-1"></i>Clear
+                </button>
+              </div>
+            </div>
+            <div className="text-muted small mt-2" aria-live="polite">
+              {isLoadingRuns ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-1"
+                    role="status"
+                    aria-hidden="true"
+                  ></span>
+                  Loading run history...
+                </>
+              ) : (
+                <>
+                  Showing {filteredRuns.length} of {runs.length} runs on this
+                  page
+                  {runsTotal > runs.length && ` (${runsTotal} total)`}
+                </>
+              )}
+            </div>
+          </div>
           <table className="table table-dark table-hover mb-0">
             <thead>
               <tr>
@@ -823,21 +1105,41 @@ const RunDashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {runs.map((run) => (
-                <RunRow
-                  key={run.id}
-                  run={run}
-                  runTypeName={getRunTypeName(run.runTypeId)}
-                  duration={formatDuration(run.startTime, run.endTime)}
-                  isAdmin={isAdmin}
-                  canViewOutput={canControlRuns}
-                  onDelete={handleDelete}
-                />
-              ))}
-              {runs.length === 0 && (
+              {isLoadingRuns ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-4 text-muted">
-                    No runs recorded.
+                  <td colSpan={7} className="text-center py-5 text-muted">
+                    <span
+                      className="spinner-border spinner-border-sm me-2"
+                      role="status"
+                      aria-hidden="true"
+                    ></span>
+                    Loading run history...
+                  </td>
+                </tr>
+              ) : (
+                filteredRuns.map((run) => (
+                  <RunRow
+                    key={run.id}
+                    run={run}
+                    runTypeName={getRunTypeName(run.runTypeId)}
+                    duration={formatDuration(run.startTime, run.endTime)}
+                    isAdmin={isAdmin}
+                    canViewOutput={canControlRuns}
+                    onDelete={handleDelete}
+                    deletingRunId={deletingRunId}
+                  />
+                ))
+              )}
+              {!isLoadingRuns && filteredRuns.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-center py-4 text-muted">
+                    {runs.length === 0
+                      ? pollingError
+                        ? 'Run history is unavailable. Retrying...'
+                        : runsTotal === 0
+                          ? 'No runs recorded.'
+                          : 'No runs found on this page.'
+                      : 'No runs match the current filters.'}
                   </td>
                 </tr>
               )}
@@ -849,18 +1151,28 @@ const RunDashboard = () => {
             <div className="d-flex justify-content-between align-items-center p-3 border-top border-secondary">
               <button
                 className="btn btn-sm btn-outline-secondary"
-                disabled={runsPage === 1}
-                onClick={() => setRunsPage(runsPage - 1)}
+                disabled={isLoadingRuns || runsPage === 1}
+                onClick={() => handleRunsPageChange(runsPage - 1)}
               >
                 <i className="fa-solid fa-chevron-left me-1"></i> Prev
               </button>
-              <span className="text-muted small">
+              <span className="text-muted small" aria-live="polite">
+                {isLoadingRuns && (
+                  <span
+                    className="spinner-border spinner-border-sm me-1"
+                    role="status"
+                    aria-label="Loading page"
+                  ></span>
+                )}
                 Page {runsPage} of {Math.ceil(runsTotal / runsLimit)}
               </span>
               <button
                 className="btn btn-sm btn-outline-secondary"
-                disabled={runsPage >= Math.ceil(runsTotal / runsLimit)}
-                onClick={() => setRunsPage(runsPage + 1)}
+                disabled={
+                  isLoadingRuns ||
+                  runsPage >= Math.ceil(runsTotal / runsLimit)
+                }
+                onClick={() => handleRunsPageChange(runsPage + 1)}
               >
                 Next <i className="fa-solid fa-chevron-right ms-1"></i>
               </button>

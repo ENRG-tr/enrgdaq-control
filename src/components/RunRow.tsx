@@ -27,6 +27,7 @@ interface RunRowProps {
   isAdmin: boolean;
   canViewOutput: boolean;
   onDelete: (runId: number, status: string) => void;
+  deletingRunId: number | null;
 }
 
 export function RunRow({
@@ -36,6 +37,7 @@ export function RunRow({
   isAdmin,
   canViewOutput,
   onDelete,
+  deletingRunId,
 }: RunRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isFilesExpanded, setIsFilesExpanded] = useState(false);
@@ -167,10 +169,18 @@ export function RunRow({
             <button
               className="btn btn-sm btn-outline-danger"
               onClick={() => onDelete(run.id, run.status)}
-              disabled={run.status === 'RUNNING'}
+              disabled={run.status === 'RUNNING' || deletingRunId !== null}
               title="Delete Run"
             >
-              <i className="fa-solid fa-trash"></i>
+              {deletingRunId === run.id ? (
+                <span
+                  className="spinner-border spinner-border-sm"
+                  role="status"
+                  aria-label={`Deleting run ${run.id}`}
+                ></span>
+              ) : (
+                <i className="fa-solid fa-trash"></i>
+              )}
             </button>
           )}
         </td>

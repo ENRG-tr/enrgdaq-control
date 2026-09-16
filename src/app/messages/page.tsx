@@ -7,6 +7,8 @@ import { formatDate } from '@/lib/date-utils';
 import toast from 'react-hot-toast';
 import MessagePayloadForm from '@/components/MessagePayloadForm';
 import type { DAQJobInfo } from '@/lib/types';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import AsyncError from '@/components/AsyncError';
 
 interface MessageSchema {
   type_key: string;
@@ -14,6 +16,9 @@ interface MessageSchema {
   description: string;
   $defs?: Record<string, unknown>;
 }
+
+type MessageSortOrder = 'newest' | 'oldest' | 'type' | 'status';
+type MessageTargetFilter = 'all' | 'broadcast' | 'specific';
 
 export default function MessagesPage() {
   const {
@@ -28,6 +33,8 @@ export default function MessagesPage() {
 
   // Templates
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | ''>('');
   const [parameters, setParameters] = useState<TemplateParameter[]>([]);
   const [parameterValues, setParameterValues] = useState<
@@ -38,6 +45,7 @@ export default function MessagesPage() {
   // Schemas (for raw message mode)
   const [schemas, setSchemas] = useState<Record<string, MessageSchema>>({});
   const [loadingSchemas, setLoadingSchemas] = useState(false);
+  const [schemasError, setSchemasError] = useState<string | null>(null);
 
   // Target selection
   const [targetMode, setTargetMode] = useState<'broadcast' | 'specific'>(
@@ -50,9 +58,17 @@ export default function MessagesPage() {
 
   // Message history
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(true);
+  const [messagesError, setMessagesError] = useState<string | null>(null);
   const [messagesTotal, setMessagesTotal] = useState(0);
   const [messagesPage, setMessagesPage] = useState(1);
   const messagesLimit = 10;
+  const [messageHistorySearch, setMessageHistorySearch] = useState('');
+  const [messageStatusFilter, setMessageStatusFilter] = useState('all');
+  const [messageTargetFilter, setMessageTargetFilter] =
+    useState<MessageTargetFilter>('all');
+  const [messageSortOrder, setMessageSortOrder] =
+    useState<MessageSortOrder>('newest');
 
   // Raw message mode
   const [mode, setMode] = useState<'template' | 'raw'>('template');
@@ -117,16 +133,22 @@ export default function MessagesPage() {
   }, [selectedTemplateId]);
 
   const loadTemplates = async () => {
+    setIsLoadingTemplates(true);
+    setTemplatesError(null);
     try {
       const data = await API.getMessageTemplates();
       setTemplates(data);
     } catch (e: unknown) {
       console.error('Failed to load message templates:', e);
+      setTemplatesError('Failed to load message templates. Please try again.');
+    } finally {
+      setIsLoadingTemplates(false);
     }
   };
 
   const loadSchemas = async () => {
     setLoadingSchemas(true);
+    setSchemasError(null);
     try {
       const data = (await API.getMessageSchemas()) as Record<
         string,
@@ -135,18 +157,24 @@ export default function MessagesPage() {
       setSchemas(data);
     } catch (e: unknown) {
       console.error('Failed to load message schemas:', e);
+      setSchemasError('Failed to load message schemas. Please try again.');
     } finally {
       setLoadingSchemas(false);
     }
   };
 
   const loadMessages = async () => {
+    setIsLoadingMessages(true);
+    setMessagesError(null);
     try {
       const data = await API.getMessages(messagesPage, messagesLimit);
       setMessages(data.messages);
       setMessagesTotal(data.total);
     } catch (e: unknown) {
       console.error('Failed to load messages:', e);
+      setMessagesError('Failed to load message history. Please try again.');
+    } finally {
+      setIsLoadingMessages(false);
     }
   };
 
@@ -167,6 +195,92 @@ export default function MessagesPage() {
     } finally {
       setLoadingParams(false);
     }
+  };
+
+  const messageStatusOptions = React.useMemo(() => {
+    const commonStatuses = ['SENT', 'FAILED'];
+    return Array.from(
+      new Set([...commonStatuses, ...messages.map((message) => message.status)]),
+    );
+  }, [messages]);
+
+  const filteredMessages = React.useMemo(() => {
+    const query = messageHistorySearch.trim().toLowerCase();
+    const matchingMessages = messages.filter((message) => {
+      const isBroadcast = !message.targetDaqJobType;
+      if (
+        (messageStatusFilter !== 'all' &&
+          message.status !== messageStatusFilter) ||
+        (messageTargetFilter === 'broadcast' && !isBroadcast) ||
+        (messageTargetFilter === 'specific' && isBroadcast)
+      ) {
+        return false;
+      }
+
+      if (!query) return true;
+
+      const searchableText = [
+        message.id,
+        message.messageType,
+        message.clientId,
+        message.targetDaqJobType || 'Broadcast',
+        message.targetDaqJobUniqueId,
+        message.status,
+        message.errorMessage,
+        message.runId,
+        message.payload,
+      ]
+        .filter((value) => value !== null && value !== undefined)
+        .join(' ')
+        .toLowerCase();
+      return searchableText.includes(query);
+    });
+
+    return matchingMessages.sort((first, second) => {
+      if (messageSortOrder === 'type') {
+        return (
+          first.messageType.localeCompare(second.messageType) ||
+          second.id - first.id
+        );
+      }
+      if (messageSortOrder === 'status') {
+        return (
+          first.status.localeCompare(second.status) || second.id - first.id
+        );
+      }
+
+      const firstSentAt = new Date(first.sentAt).getTime();
+      const secondSentAt = new Date(second.sentAt).getTime();
+      return messageSortOrder === 'oldest'
+        ? firstSentAt - secondSentAt || first.id - second.id
+        : secondSentAt - firstSentAt || second.id - first.id;
+    });
+  }, [
+    messages,
+    messageHistorySearch,
+    messageStatusFilter,
+    messageTargetFilter,
+    messageSortOrder,
+  ]);
+
+  const messageFiltersActive =
+    messageHistorySearch.trim().length > 0 ||
+    messageStatusFilter !== 'all' ||
+    messageTargetFilter !== 'all';
+
+  const handleMessagesPageChange = (page: number) => {
+    const pageCount = Math.ceil(messagesTotal / messagesLimit);
+    if (
+      isLoadingMessages ||
+      page < 1 ||
+      page > pageCount ||
+      page === messagesPage
+    ) {
+      return;
+    }
+
+    setIsLoadingMessages(true);
+    setMessagesPage(page);
   };
 
   const handleParameterChange = (name: string, value: string) => {
@@ -322,6 +436,14 @@ export default function MessagesPage() {
                     <label className="form-label text-muted">
                       Message Template
                     </label>
+                    {templatesError && !isLoadingTemplates && (
+                      <AsyncError
+                        message={templatesError}
+                        onRetry={loadTemplates}
+                        retryLabel="Retry loading message templates"
+                        className="mb-2"
+                      />
+                    )}
                     <select
                       className="form-select bg-dark text-light border-secondary"
                       value={selectedTemplateId}
@@ -330,8 +452,11 @@ export default function MessagesPage() {
                           e.target.value === '' ? '' : Number(e.target.value),
                         )
                       }
+                      disabled={isLoadingTemplates}
                     >
-                      <option value="">Select Template </option>
+                      <option value="">
+                        {isLoadingTemplates ? 'Loading templates...' : 'Select Template'}
+                      </option>
                       {templates.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.displayName}
@@ -444,9 +569,17 @@ export default function MessagesPage() {
                     </select>
                     {loadingSchemas && (
                       <div className="form-text">
-                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
                         Loading schemas...
                       </div>
+                    )}
+                    {schemasError && !loadingSchemas && (
+                      <AsyncError
+                        message={schemasError}
+                        onRetry={loadSchemas}
+                        retryLabel="Retry loading message schemas"
+                        className="mt-2 mb-0"
+                      />
                     )}
                   </div>
 
@@ -557,8 +690,152 @@ export default function MessagesPage() {
               <span className="badge bg-secondary">{messagesTotal} Total</span>
             </div>
             <div className="card-body p-0 overflow-auto">
+              <div className="p-3 border-bottom border-secondary">
+                <div className="row g-2 align-items-end">
+                  <div className="col-12">
+                    <label
+                      htmlFor="message-history-search"
+                      className="form-label text-muted small mb-1"
+                    >
+                      Search message history
+                    </label>
+                    <div className="input-group input-group-sm">
+                      <span className="input-group-text bg-dark text-muted border-secondary">
+                        <i className="fa-solid fa-magnifying-glass"></i>
+                      </span>
+                      <input
+                        id="message-history-search"
+                        type="search"
+                        className="form-control bg-dark text-light border-secondary"
+                        placeholder="Type, client, target, payload..."
+                        value={messageHistorySearch}
+                        onChange={(event) =>
+                          setMessageHistorySearch(event.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div className="col-6 col-md-4">
+                    <label
+                      htmlFor="message-status-filter"
+                      className="form-label text-muted small mb-1"
+                    >
+                      Status
+                    </label>
+                    <select
+                      id="message-status-filter"
+                      className="form-select form-select-sm bg-dark text-light border-secondary"
+                      value={messageStatusFilter}
+                      onChange={(event) =>
+                        setMessageStatusFilter(event.target.value)
+                      }
+                    >
+                      <option value="all">All statuses</option>
+                      {messageStatusOptions.map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-6 col-md-4">
+                    <label
+                      htmlFor="message-target-filter"
+                      className="form-label text-muted small mb-1"
+                    >
+                      Target
+                    </label>
+                    <select
+                      id="message-target-filter"
+                      className="form-select form-select-sm bg-dark text-light border-secondary"
+                      value={messageTargetFilter}
+                      onChange={(event) =>
+                        setMessageTargetFilter(
+                          event.target.value as MessageTargetFilter,
+                        )
+                      }
+                    >
+                      <option value="all">All targets</option>
+                      <option value="broadcast">Broadcast</option>
+                      <option value="specific">Specific job</option>
+                    </select>
+                  </div>
+                  <div className="col-8 col-md-3">
+                    <label
+                      htmlFor="message-sort-order"
+                      className="form-label text-muted small mb-1"
+                    >
+                      Sort by
+                    </label>
+                    <select
+                      id="message-sort-order"
+                      className="form-select form-select-sm bg-dark text-light border-secondary"
+                      value={messageSortOrder}
+                      onChange={(event) =>
+                        setMessageSortOrder(
+                          event.target.value as MessageSortOrder,
+                        )
+                      }
+                    >
+                      <option value="newest">Newest first</option>
+                      <option value="oldest">Oldest first</option>
+                      <option value="type">Message type</option>
+                      <option value="status">Status</option>
+                    </select>
+                  </div>
+                  <div className="col-4 col-md-1 d-flex">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary w-100"
+                      onClick={() => {
+                        setMessageHistorySearch('');
+                        setMessageStatusFilter('all');
+                        setMessageTargetFilter('all');
+                        setMessageSortOrder('newest');
+                      }}
+                      disabled={
+                        !messageFiltersActive && messageSortOrder === 'newest'
+                      }
+                      title="Clear message history filters"
+                    >
+                      <i className="fa-solid fa-xmark me-1"></i>Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="text-muted small mt-2" aria-live="polite">
+                  {isLoadingMessages ? (
+                    <>
+                      <span
+                        className="spinner-border spinner-border-sm me-1"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
+                      Loading message history...
+                    </>
+                  ) : (
+                    <>
+                      Showing {filteredMessages.length} of {messages.length}{' '}
+                      messages on this page
+                      {messagesTotal > messages.length &&
+                        ` (${messagesTotal} total)`}
+                    </>
+                  )}
+                </div>
+              </div>
               <div className="list-group list-group-flush">
-                {messages.map((msg) => (
+                {isLoadingMessages ? (
+                  <LoadingSpinner
+                    label="Loading message history..."
+                    className="p-4"
+                  />
+                ) : messagesError ? (
+                  <AsyncError
+                    message={messagesError}
+                    onRetry={loadMessages}
+                    retryLabel="Retry loading message history"
+                    className="m-3"
+                  />
+                ) : filteredMessages.map((msg) => (
                   <div
                     key={msg.id}
                     className="list-group-item bg-dark text-light border-secondary"
@@ -677,9 +954,13 @@ export default function MessagesPage() {
                     </details>
                   </div>
                 ))}
-                {messages.length === 0 && (
+                {!isLoadingMessages && !messagesError && filteredMessages.length === 0 && (
                   <div className="p-4 text-center text-muted">
-                    No messages sent yet.
+                    {messages.length === 0
+                      ? messagesTotal === 0
+                        ? 'No messages sent yet.'
+                        : 'No messages found on this page.'
+                      : 'No messages match the current filters.'}
                   </div>
                 )}
               </div>
@@ -689,21 +970,33 @@ export default function MessagesPage() {
                 <div className="d-flex justify-content-between align-items-center p-3 border-top border-secondary">
                   <button
                     className="btn btn-sm btn-outline-secondary"
-                    disabled={messagesPage === 1}
-                    onClick={() => setMessagesPage(messagesPage - 1)}
+                    disabled={isLoadingMessages || messagesPage === 1}
+                    onClick={() =>
+                      handleMessagesPageChange(messagesPage - 1)
+                    }
                   >
                     <i className="fa-solid fa-chevron-left me-1"></i> Prev
                   </button>
-                  <span className="text-muted small">
+                  <span className="text-muted small" aria-live="polite">
+                    {isLoadingMessages && (
+                      <span
+                        className="spinner-border spinner-border-sm me-1"
+                        role="status"
+                        aria-label="Loading page"
+                      ></span>
+                    )}
                     Page {messagesPage} of{' '}
                     {Math.ceil(messagesTotal / messagesLimit)}
                   </span>
                   <button
                     className="btn btn-sm btn-outline-secondary"
                     disabled={
+                      isLoadingMessages ||
                       messagesPage >= Math.ceil(messagesTotal / messagesLimit)
                     }
-                    onClick={() => setMessagesPage(messagesPage + 1)}
+                    onClick={() =>
+                      handleMessagesPageChange(messagesPage + 1)
+                    }
                   >
                     Next <i className="fa-solid fa-chevron-right ms-1"></i>
                   </button>

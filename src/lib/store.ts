@@ -25,12 +25,22 @@ interface AppState {
   activeRun: Run | null;
   runTypes: RunType[];
 
+  // Polling State
+  lastUpdatedAt: number;
+  isPolling: boolean;
+  pollingError: string | null;
+
   // Actions
-  fetchClients: () => Promise<void>;
+  fetchClients: () => Promise<boolean>;
   selectClient: (id: string) => void;
-  pollClientStatus: () => Promise<void>;
+  pollClientStatus: () => Promise<boolean>;
   checkAuthStatus: () => Promise<void>;
   increaseLogsLimit: () => void;
+  setPollingState: (state: {
+    isPolling?: boolean;
+    lastUpdatedAt?: number;
+    pollingError?: string | null;
+  }) => void;
 
   startRun: (
     description: string,
@@ -40,7 +50,7 @@ interface AppState {
   ) => Promise<void>;
   stopRun: () => Promise<void>;
   deleteRun: (runId: number) => Promise<void>;
-  fetchRuns: () => Promise<void>;
+  fetchRuns: () => Promise<boolean>;
   setRunsPage: (page: number) => void;
   fetchRunTypes: () => Promise<void>;
 }
@@ -65,6 +75,14 @@ export const useStore = create<AppState>((set, get) => ({
   activeRun: null,
   runTypes: [],
 
+  lastUpdatedAt: 0,
+  isPolling: false,
+  pollingError: null,
+
+  setPollingState: (state) => {
+    set(state);
+  },
+
   fetchClients: async () => {
     try {
       const clients = await API.getClients();
@@ -72,8 +90,10 @@ export const useStore = create<AppState>((set, get) => ({
       if (!get().selectedClient && clients.length > 0) {
         set({ selectedClient: clients[0].id });
       }
+      return true;
     } catch (e) {
       console.error('Failed to fetch clients', e);
+      return false;
     }
   },
 
@@ -89,7 +109,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   pollClientStatus: async () => {
     const { selectedClient, logsLimit } = get();
-    if (!selectedClient) return;
+    if (!selectedClient) return true;
 
     try {
       // Simple ping check via status
@@ -101,8 +121,10 @@ export const useStore = create<AppState>((set, get) => ({
       // Actually fetchRuns is called manually or by actions.
       // Polling dashboard usually refreshes runs too or we rely on websockets/events?
       // The existing code did NOT poll fetchRuns inside pollClientStatus, so I leave it.
-    } catch (e) {
+      return true;
+    } catch {
       set({ clientOnline: false, clientStatus: null });
+      return false;
     }
   },
 
@@ -133,8 +155,10 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const { runs, total, activeRun } = await API.getRuns(runsPage, runsLimit);
       set({ runs, runsTotal: total, activeRun });
+      return true;
     } catch (e) {
       console.error('Failed to fetch runs', e);
+      return false;
     }
   },
 
