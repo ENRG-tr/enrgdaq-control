@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { parseToml } from '@/lib/toml-utils';
 import {
   parseDAQJobSchemas,
@@ -9,6 +9,7 @@ import {
   type ParsedSchemas,
 } from '@/lib/schema-parser';
 import { API } from '@/lib/api-client';
+import AsyncError from './AsyncError';
 
 interface TomlFormProps {
   initialToml: string;
@@ -65,38 +66,40 @@ const TomlForm: React.FC<TomlFormProps> = ({
   const [rawToml, setRawToml] = useState(initialToml);
   const [parseError, setParseError] = useState<string | null>(null);
 
+  const loadSchemas = useCallback(async () => {
+    setSchemasLoading(true);
+    setSchemasError(null);
+
+    try {
+      const rawSchemas = await API.getDAQJobSchemas();
+      const parsed = parseDAQJobSchemas(
+        rawSchemas as Parameters<typeof parseDAQJobSchemas>[0],
+      );
+      setSchemas(parsed);
+
+      // Set default job type if not already set
+      const jobTypes = getJobTypes(parsed);
+      if (jobTypes.length > 0) {
+        setFormData((prev) =>
+          prev.daq_job_type
+            ? prev
+            : { ...prev, daq_job_type: jobTypes[0].value },
+        );
+      }
+    } catch (error) {
+      console.error('Failed to fetch DAQ job schemas:', error);
+      setSchemasError(
+        'Failed to load DAQ job schemas. Using raw TOML editor.',
+      );
+    } finally {
+      setSchemasLoading(false);
+    }
+  }, []);
+
   // Fetch schemas on mount
   useEffect(() => {
-    const fetchSchemas = async () => {
-      try {
-        setSchemasLoading(true);
-        const rawSchemas = await API.getDAQJobSchemas();
-        const parsed = parseDAQJobSchemas(
-          rawSchemas as Parameters<typeof parseDAQJobSchemas>[0],
-        );
-        setSchemas(parsed);
-        setSchemasError(null);
-
-        // Set default job type if not already set
-        const jobTypes = getJobTypes(parsed);
-        if (jobTypes.length > 0 && !formData.daq_job_type) {
-          setFormData((prev) => ({
-            ...prev,
-            daq_job_type: jobTypes[0].value,
-          }));
-        }
-      } catch (error) {
-        console.error('Failed to fetch DAQ job schemas:', error);
-        setSchemasError(
-          'Failed to load DAQ job schemas. Using raw TOML editor.',
-        );
-      } finally {
-        setSchemasLoading(false);
-      }
-    };
-
-    fetchSchemas();
-  }, [formData.daq_job_type]);
+    void loadSchemas();
+  }, [loadSchemas]);
 
   // Parse TOML when initialToml or schemas change
   useEffect(() => {
@@ -186,14 +189,16 @@ const TomlForm: React.FC<TomlFormProps> = ({
   }
 
   // Error state - show raw editor
-  if (schemasError || !schemas) {
+  if (!schemas) {
     return (
       <div>
         {schemasError && (
-          <div className="alert alert-warning py-2 mb-3">
-            <i className="fa-solid fa-triangle-exclamation me-2"></i>
-            {schemasError}
-          </div>
+          <AsyncError
+            message={schemasError}
+            onRetry={loadSchemas}
+            retryLabel="Retry loading DAQ job schemas"
+            className="mb-3"
+          />
         )}
         <textarea
           className="form-control bg-black text-warning border-secondary font-monospace"
@@ -211,6 +216,14 @@ const TomlForm: React.FC<TomlFormProps> = ({
 
   return (
     <div className="toml-form">
+      {schemasError && (
+        <AsyncError
+          message={schemasError}
+          onRetry={loadSchemas}
+          retryLabel="Retry loading DAQ job schemas"
+          className="mb-3"
+        />
+      )}
       {/* DAQ Job Type Selection */}
       <div className="mb-4 d-flex align-items-end gap-3">
         <div className="flex-grow-1">

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { API } from '@/lib/api-client';
+import AsyncError from './AsyncError';
 
 interface MessagePayloadFormProps {
   messageType: string;
@@ -18,24 +19,30 @@ const MessagePayloadForm: React.FC<MessagePayloadFormProps> = ({
 }) => {
   const [schemas, setSchemas] = useState<Record<string, any> | null>(null);
   const [schemasLoading, setSchemasLoading] = useState(true);
+  const [schemasError, setSchemasError] = useState<string | null>(null);
   const [rawPayload, setRawPayload] = useState(initialPayload || '{}');
+
+  const loadSchemas = useCallback(async () => {
+    setSchemasLoading(true);
+    setSchemasError(null);
+
+    try {
+      const data = await API.getMessageSchemas();
+      setSchemas(data);
+    } catch (error) {
+      console.error('Failed to fetch message schemas:', error);
+      setSchemasError(
+        'Failed to load message schemas. Please try again.',
+      );
+    } finally {
+      setSchemasLoading(false);
+    }
+  }, []);
 
   // Fetch schemas on mount
   useEffect(() => {
-    const fetchSchemas = async () => {
-      try {
-        setSchemasLoading(true);
-        const data = await API.getMessageSchemas();
-        setSchemas(data);
-      } catch (error) {
-        console.error('Failed to fetch message schemas:', error);
-      } finally {
-        setSchemasLoading(false);
-      }
-    };
-
-    fetchSchemas();
-  }, []);
+    void loadSchemas();
+  }, [loadSchemas]);
 
   // Sync with prop
   useEffect(() => {
@@ -130,6 +137,14 @@ const MessagePayloadForm: React.FC<MessagePayloadFormProps> = ({
 
   return (
     <div className="message-payload-form">
+      {schemasError && (
+        <AsyncError
+          message={schemasError}
+          onRetry={loadSchemas}
+          retryLabel="Retry loading message schemas"
+          className="mb-3"
+        />
+      )}
       <div className="d-flex justify-content-between align-items-center mb-2">
         <label className="form-label text-warning fw-bold mb-0">
           <i className="fa-solid fa-code me-2"></i>

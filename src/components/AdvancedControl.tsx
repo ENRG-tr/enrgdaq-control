@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import { API, type Template } from '@/lib/api-client';
 import type { DAQJobInfo, LogEntry } from '@/lib/types';
 import TomlForm from './TomlForm';
 import toast from 'react-hot-toast';
+import LoadingSpinner from './LoadingSpinner';
+import AsyncError from './AsyncError';
 
 const AdvancedControl = () => {
   const {
@@ -23,9 +25,11 @@ const AdvancedControl = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [customConfig, setCustomConfig] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
   const [stoppingJobId, setStoppingJobId] = useState<string | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
   const [isStoppingAll, setIsStoppingAll] = useState(false);
@@ -253,33 +257,41 @@ const AdvancedControl = () => {
     const text = filteredLogs
       .map((l) => `[${l.timestamp}] [${l.module}] ${l.level} ${l.message}`)
       .join('\n');
+    setIsCopying(true);
     try {
       await navigator.clipboard.writeText(text);
       toast.success(`${filteredLogs.length} log${filteredLogs.length !== 1 ? 's' : ''} copied to clipboard!`);
     } catch {
       toast.error('Failed to copy logs to clipboard.');
+    } finally {
+      setIsCopying(false);
     }
   };
 
 
+  const loadTemplates = useCallback(async () => {
+    setIsLoading(true);
+    setTemplatesError(null);
+
+    try {
+      const data = await API.getTemplates();
+      setTemplates(data);
+      if (data.length > 0) {
+        setSelectedTemplate(data[0].name);
+        setCustomConfig(data[0].config);
+      }
+    } catch (e) {
+      console.error('Failed to fetch templates:', e);
+      setTemplatesError('Failed to load templates. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   // Fetch templates on mount
   useEffect(() => {
-    const fetchTemplates = async () => {
-      try {
-        const data = await API.getTemplates();
-        setTemplates(data);
-        if (data.length > 0) {
-          setSelectedTemplate(data[0].name);
-          setCustomConfig(data[0].config);
-        }
-      } catch (e) {
-        console.error('Failed to fetch templates:', e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchTemplates();
-  }, []);
+    void loadTemplates();
+  }, [loadTemplates]);
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const name = e.target.value;
@@ -556,20 +568,36 @@ const AdvancedControl = () => {
                 <div className="mb-3">
                   <label className="form-label text-muted">Template</label>
                   {isLoading ? (
-                    <div className="text-muted">Loading templates...</div>
+                    <LoadingSpinner
+                      size="sm"
+                      label="Loading templates..."
+                      className="justify-content-start"
+                    />
                   ) : (
-                    <select
-                      className="form-select bg-dark text-light border-secondary"
-                      value={selectedTemplate}
-                      onChange={handleTemplateChange}
-                    >
-                      {Array.isArray(templates) &&
-                        templates.map((t) => (
-                          <option key={t.name} value={t.name}>
-                            {t.displayName}
-                          </option>
-                        ))}
-                    </select>
+                    <>
+                      {templatesError && (
+                        <AsyncError
+                          message={templatesError}
+                          onRetry={loadTemplates}
+                          retryLabel="Retry loading templates"
+                          className="mb-2"
+                        />
+                      )}
+                      {(templates.length > 0 || !templatesError) && (
+                        <select
+                          className="form-select bg-dark text-light border-secondary"
+                          value={selectedTemplate}
+                          onChange={handleTemplateChange}
+                        >
+                          {Array.isArray(templates) &&
+                            templates.map((t) => (
+                              <option key={t.name} value={t.name}>
+                                {t.displayName}
+                              </option>
+                            ))}
+                        </select>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -640,9 +668,16 @@ const AdvancedControl = () => {
                   style={{ fontSize: '0.72rem', height: '24px', lineHeight: 1 }}
                   onClick={handleCopyLogs}
                   title="Copy filtered logs to clipboard"
-                  disabled={filteredLogs.length === 0}
+                  disabled={filteredLogs.length === 0 || isCopying}
                 >
-                  <i className="fa-solid fa-copy me-1"></i>Copy
+                  {isCopying ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                      Copying...
+                    </>
+                  ) : (
+                    <><i className="fa-solid fa-copy me-1"></i>Copy</>
+                  )}
                 </button>
                 <div className="position-relative d-inline-flex align-items-center">
                   <button
