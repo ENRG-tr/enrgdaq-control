@@ -1,23 +1,66 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { API, RunType, AggregatedParameter, Template } from '@/lib/api-client';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import ConfirmModal from '@/components/ConfirmModal';
+import AsyncError from '@/components/AsyncError';
+import { useNavigationGuard } from '@/hooks/useNavigationGuard';
+
+interface RunTypeFormData {
+  name: string;
+  description: string;
+  requiredTags: string[];
+  templateIds: number[];
+}
+
+interface ConfirmationRequest {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onConfirm: () => void;
+}
+
+const emptyRunTypeForm = (): RunTypeFormData => ({
+  name: '',
+  description: '',
+  requiredTags: [],
+  templateIds: [],
+});
 
 export default function RunTypesPage() {
+  const router = useRouter();
   const [runTypes, setRunTypes] = useState<RunType[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedRunType, setSelectedRunType] = useState<RunType | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingParameters, setIsLoadingParameters] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [updatingParameterId, setUpdatingParameterId] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [parameterError, setParameterError] = useState<string | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState<{
-    name: string;
-    description: string;
-    requiredTags: string[];
-    templateIds: number[];
-  }>({ name: '', description: '', requiredTags: [], templateIds: [] });
+  const [formData, setFormData] = useState<RunTypeFormData>(() =>
+    emptyRunTypeForm(),
+  );
+  const [formBaseline, setFormBaseline] = useState<RunTypeFormData>(() =>
+    emptyRunTypeForm(),
+  );
+  const [tagInput, setTagInput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [confirmation, setConfirmation] =
+    useState<ConfirmationRequest | null>(null);
+
+  const isDirty =
+    (isCreating || isEditing) &&
+    (JSON.stringify(formData) !== JSON.stringify(formBaseline) ||
+      tagInput !== '');
 
   // Aggregated parameters state (from associated templates)
   const [aggregatedParams, setAggregatedParams] = useState<
@@ -27,6 +70,28 @@ export default function RunTypesPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const askToDiscardChanges = (onConfirm: () => void) => {
+    setConfirmation({
+      title: 'Discard unsaved changes?',
+      message: 'Your changes will be lost if you continue.',
+      confirmLabel: 'Discard changes',
+      danger: true,
+      onConfirm,
+    });
+  };
+
+  const runWithDiscardCheck = (onConfirm: () => void) => {
+    if (isDirty) {
+      askToDiscardChanges(onConfirm);
+    } else {
+      onConfirm();
+    }
+  };
+
+  useNavigationGuard(isDirty, (href) => {
+    askToDiscardChanges(() => router.push(href));
+  });
 
   // Load aggregated parameters when a run type is selected
   useEffect(() => {
@@ -38,6 +103,8 @@ export default function RunTypesPage() {
   }, [selectedRunType]);
 
   const loadData = async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
       const [rtData, tData] = await Promise.all([
         API.getRunTypes(),
@@ -48,90 +115,112 @@ export default function RunTypesPage() {
       setTemplates(tData);
     } catch (e: unknown) {
       const error = e as { message?: string };
-      setError(error.message || 'Failed to load data');
+      const message = error.message || 'Failed to load data';
+      setLoadError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const loadAggregatedParameters = async (runTypeId: number) => {
+    setIsLoadingParameters(true);
+    setParameterError(null);
     try {
       const params = await API.getAggregatedParametersForRunType(runTypeId);
       setAggregatedParams(params);
     } catch (e) {
       console.error('Failed to load aggregated parameters:', e);
+      setParameterError('Failed to load parameters. Please try again.');
       setAggregatedParams([]);
+    } finally {
+      setIsLoadingParameters(false);
     }
   };
 
-  const handleSelectRunType = (rt: RunType) => {
-    if (isCreating || isEditing) {
-      if (!confirm('Discard changes?')) return;
-    }
-    setSelectedRunType(rt);
+  const selectRunType = (runType: RunType) => {
+    const associatedIds = templates
+      .filter((template) => template.runTypeIds?.includes(runType.id))
+      .map((template) => template.id);
+    const nextFormData: RunTypeFormData = {
+      name: runType.name,
+      description: runType.description || '',
+      requiredTags: runType.requiredTags || [],
+      templateIds: associatedIds,
+    };
+    setSelectedRunType(runType);
     setIsCreating(false);
     setIsEditing(false);
-    const associatedIds = templates
-      .filter((t) => t.runTypeIds?.includes(rt.id))
-      .map((t) => t.id);
-    setFormData({
-      name: rt.name,
-      description: rt.description || '',
-      requiredTags: rt.requiredTags || [],
-      templateIds: associatedIds,
-    });
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
+    setTagInput('');
     setError(null);
   };
 
-  const handleStartCreate = () => {
+  const handleSelectRunType = (runType: RunType) => {
+    runWithDiscardCheck(() => selectRunType(runType));
+  };
+
+  const startCreate = () => {
+    const nextFormData = emptyRunTypeForm();
     setSelectedRunType(null);
     setIsCreating(true);
     setIsEditing(false);
-    setFormData({
-      name: '',
-      description: '',
-      requiredTags: [],
-      templateIds: [],
-    });
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
+    setTagInput('');
     setError(null);
     setAggregatedParams([]);
   };
 
+  const handleStartCreate = () => {
+    runWithDiscardCheck(startCreate);
+  };
+
   const handleStartEdit = () => {
     if (!selectedRunType) return;
-    setIsEditing(true);
-    setFormData({
+    const nextFormData: RunTypeFormData = {
       name: selectedRunType.name,
       description: selectedRunType.description || '',
       requiredTags: selectedRunType.requiredTags || [],
       templateIds: formData.templateIds,
-    });
+    };
+    setIsEditing(true);
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
+    setTagInput('');
   };
 
-  const handleCancel = () => {
-    setIsCreating(false);
-    setIsEditing(false);
+  const cancelForm = () => {
     if (selectedRunType) {
       const associatedIds = templates
-        .filter((t) => t.runTypeIds?.includes(selectedRunType.id))
-        .map((t) => t.id);
-      setFormData({
+        .filter((template) => template.runTypeIds?.includes(selectedRunType.id))
+        .map((template) => template.id);
+      const nextFormData: RunTypeFormData = {
         name: selectedRunType.name,
         description: selectedRunType.description || '',
         requiredTags: selectedRunType.requiredTags || [],
         templateIds: associatedIds,
-      });
+      };
+      setFormData(nextFormData);
+      setFormBaseline(nextFormData);
     } else {
-      setFormData({
-        name: '',
-        description: '',
-        requiredTags: [],
-        templateIds: [],
-      });
+      const nextFormData = emptyRunTypeForm();
+      setFormData(nextFormData);
+      setFormBaseline(nextFormData);
     }
+    setIsCreating(false);
+    setIsEditing(false);
+    setTagInput('');
     setError(null);
+  };
+
+  const handleCancel = () => {
+    runWithDiscardCheck(cancelForm);
   };
 
   const handleSave = async () => {
     setError(null);
+    setIsSaving(true);
     try {
       if (isCreating) {
         const newRunType = await API.createRunType({
@@ -145,7 +234,15 @@ export default function RunTypesPage() {
         }
 
         await loadData();
+        const nextFormData: RunTypeFormData = {
+          ...formData,
+          requiredTags: [...formData.requiredTags],
+          templateIds: [...formData.templateIds],
+        };
         setSelectedRunType(newRunType);
+        setFormData(nextFormData);
+        setFormBaseline(nextFormData);
+        setTagInput('');
         setIsCreating(false);
       } else if (isEditing && selectedRunType) {
         const updated = await API.updateRunType(selectedRunType.id, {
@@ -161,7 +258,16 @@ export default function RunTypesPage() {
         );
 
         await loadData();
+        const nextFormData: RunTypeFormData = {
+          name: updated.name,
+          description: updated.description || '',
+          requiredTags: updated.requiredTags || [],
+          templateIds: [...formData.templateIds],
+        };
         setSelectedRunType(updated);
+        setFormData(nextFormData);
+        setFormBaseline(nextFormData);
+        setTagInput('');
         setIsEditing(false);
       }
     } catch (e: unknown) {
@@ -172,23 +278,25 @@ export default function RunTypesPage() {
       setError(
         error.response?.data?.error || error.message || 'Failed to save'
       );
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleDelete = async () => {
+  const deleteRunType = async () => {
     if (!selectedRunType) return;
-    if (
-      !confirm(
-        `Are you sure you want to delete run type "${selectedRunType.name}"?`
-      )
-    )
-      return;
 
+    setIsDeleting(true);
     try {
       await API.deleteRunType(selectedRunType.id);
       await loadData();
+      const nextFormData = emptyRunTypeForm();
       setSelectedRunType(null);
+      setIsCreating(false);
       setIsEditing(false);
+      setFormData(nextFormData);
+      setFormBaseline(nextFormData);
+      setTagInput('');
     } catch (e: unknown) {
       const error = e as {
         response?: { data?: { error?: string } };
@@ -197,7 +305,22 @@ export default function RunTypesPage() {
       setError(
         error.response?.data?.error || error.message || 'Failed to delete'
       );
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleDelete = () => {
+    if (!selectedRunType) return;
+    setConfirmation({
+      title: 'Delete run type?',
+      message: `Are you sure you want to delete run type "${selectedRunType.name}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => {
+        void deleteRunType();
+      },
+    });
   };
 
   /**
@@ -208,6 +331,7 @@ export default function RunTypesPage() {
     defaultValue: string | null
   ) => {
     if (!selectedRunType) return;
+    setUpdatingParameterId(parameterId);
     try {
       await API.setRunTypeParameterDefault(
         selectedRunType.id,
@@ -223,6 +347,8 @@ export default function RunTypesPage() {
       setError(
         error.response?.data?.error || error.message || 'Failed to set default'
       );
+    } finally {
+      setUpdatingParameterId(null);
     }
   };
 
@@ -245,23 +371,34 @@ export default function RunTypesPage() {
               Available Run Types
             </div>
             <div className="list-group list-group-flush overflow-auto h-100">
-              {runTypes.map((rt) => (
-                <button
-                  key={rt.id}
-                  onClick={() => handleSelectRunType(rt)}
-                  className={`list-group-item list-group-item-action bg-dark text-light border-secondary ${
-                    selectedRunType?.id === rt.id ? 'active' : ''
-                  }`}
-                >
-                  <div className="d-flex w-100 justify-content-between">
-                    <h6 className="mb-1 fw-bold">{rt.name}</h6>
-                  </div>
-                  <small className="text-muted text-truncate d-block">
-                    {rt.description}
-                  </small>
-                </button>
-              ))}
-              {runTypes.length === 0 && (
+              {isLoading ? (
+                <LoadingSpinner label="Loading run types..." className="p-4" />
+              ) : loadError ? (
+                <AsyncError
+                  message={loadError}
+                  onRetry={loadData}
+                  retryLabel="Retry loading run types"
+                  className="m-3"
+                />
+              ) : (
+                runTypes.map((rt) => (
+                  <button
+                    key={rt.id}
+                    onClick={() => handleSelectRunType(rt)}
+                    className={`list-group-item list-group-item-action bg-dark text-light border-secondary ${
+                      selectedRunType?.id === rt.id ? 'active' : ''
+                    }`}
+                  >
+                    <div className="d-flex w-100 justify-content-between">
+                      <h6 className="mb-1 fw-bold">{rt.name}</h6>
+                    </div>
+                    <small className="text-muted text-truncate d-block">
+                      {rt.description}
+                    </small>
+                  </button>
+                ))
+              )}
+              {!isLoading && !loadError && runTypes.length === 0 && (
                 <div className="p-3 text-center text-muted">
                   No run types found.
                 </div>
@@ -295,8 +432,16 @@ export default function RunTypesPage() {
                       <button
                         className="btn btn-outline-danger me-2"
                         onClick={handleDelete}
+                        disabled={isDeleting || isSaving}
                       >
-                        <i className="fa-solid fa-trash me-2"></i>Delete
+                        {isDeleting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                            Deleting...
+                          </>
+                        ) : (
+                          <><i className="fa-solid fa-trash me-2"></i>Delete</>
+                        )}
                       </button>
                       <button
                         className="btn btn-primary"
@@ -311,11 +456,23 @@ export default function RunTypesPage() {
                       <button
                         className="btn btn-secondary me-2"
                         onClick={handleCancel}
+                        disabled={isSaving}
                       >
                         Cancel
                       </button>
-                      <button className="btn btn-success" onClick={handleSave}>
-                        <i className="fa-solid fa-save me-2"></i>Save
+                      <button
+                        className="btn btn-success"
+                        onClick={handleSave}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                            Saving...
+                          </>
+                        ) : (
+                          <><i className="fa-solid fa-save me-2"></i>Save</>
+                        )}
                       </button>
                     </>
                   )}
@@ -368,6 +525,8 @@ export default function RunTypesPage() {
                       <input
                         type="text"
                         className="form-control bg-dark text-light border-secondary"
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
                         placeholder="Type a tag and press Enter to add..."
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
@@ -378,7 +537,7 @@ export default function RunTypesPage() {
                                 ...formData,
                                 requiredTags: [...formData.requiredTags, val],
                               });
-                              e.currentTarget.value = '';
+                              setTagInput('');
                             }
                           }
                         }}
@@ -555,7 +714,16 @@ export default function RunTypesPage() {
                 </p>
 
                 {/* Aggregated parameter list */}
-                {aggregatedParams.length > 0 ? (
+                {isLoadingParameters ? (
+                  <LoadingSpinner label="Loading parameters..." className="py-3" />
+                ) : parameterError ? (
+                  <AsyncError
+                    message={parameterError}
+                    onRetry={() => selectedRunType && loadAggregatedParameters(selectedRunType.id)}
+                    retryLabel="Retry loading parameters"
+                    className="mb-0"
+                  />
+                ) : aggregatedParams.length > 0 ? (
                   <table className="table table-dark table-sm table-hover mb-0">
                     <thead>
                       <tr>
@@ -586,18 +754,26 @@ export default function RunTypesPage() {
                             )}
                           </td>
                           <td>
-                            <input
-                              type="text"
-                              className="form-control form-control-sm bg-dark text-light border-secondary"
-                              placeholder="Optional override"
-                              value={param.runTypeDefault || ''}
-                              onChange={(e) =>
-                                handleSetParameterDefault(
-                                  param.id,
-                                  e.target.value || null
-                                )
-                              }
-                            />
+                            <div className="input-group input-group-sm">
+                              <input
+                                type="text"
+                                className="form-control bg-dark text-light border-secondary"
+                                placeholder="Optional override"
+                                value={param.runTypeDefault || ''}
+                                onChange={(e) =>
+                                  handleSetParameterDefault(
+                                    param.id,
+                                    e.target.value || null
+                                  )
+                                }
+                                disabled={updatingParameterId === param.id}
+                              />
+                              {updatingParameterId === param.id && (
+                                <span className="input-group-text bg-dark border-secondary">
+                                  <span className="spinner-border spinner-border-sm text-primary" aria-label="Saving default"></span>
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td>
                             {param.required ? (
@@ -624,6 +800,21 @@ export default function RunTypesPage() {
           )}
         </div>
       </div>
+
+      {confirmation && (
+        <ConfirmModal
+          title={confirmation.title}
+          message={confirmation.message}
+          confirmLabel={confirmation.confirmLabel}
+          danger={confirmation.danger}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => {
+            const action = confirmation.onConfirm;
+            setConfirmation(null);
+            action();
+          }}
+        />
+      )}
     </div>
   );
 }

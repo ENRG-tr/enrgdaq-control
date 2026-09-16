@@ -111,3 +111,374 @@ body {
 .dark-quill-container .ql-editor {
   min-height: 250px;
 }
+
+/* Application layout safeguards */
+html {
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.app-shell,
+.app-layout,
+.app-main,
+.app-main > * {
+  min-width: 0;
+}
+
+.app-main {
+  min-height: 0;
+}
+
+.min-width-0 {
+  min-width: 0;
+}
+
+.app-main .card,
+.app-main .card-body,
+.app-main .card-header,
+.app-main .list-group-item {
+  min-width: 0;
+}
+
+.app-main img,
+.app-main svg,
+.app-main video,
+.app-main canvas {
+  max-width: 100%;
+}
+
+/* Mobile navigation */
+.sidebar {
+  transition: width 0.3s;
+}
+
+.sidebar-toggle.sidebar-toggle {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 1049;
+  width: 2.75rem !important;
+  height: 2.75rem;
+  max-width: none;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-close {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1040;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.68);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.sidebar-backdrop.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+
+@media (max-width: 767.98px) {
+  body.sidebar-menu-open {
+    overflow: hidden;
+  }
+
+  .app-shell.app-shell {
+    height: 100dvh !important;
+    min-height: 100dvh;
+  }
+
+  .app-main.app-main {
+    width: 100%;
+    min-width: 0;
+    padding-top: 3.5rem;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 1050;
+    width: min(86vw, 280px) !important;
+    max-width: calc(100vw - 2rem);
+    min-height: 100dvh !important;
+    height: 100dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.45);
+    transform: translate3d(-100%, 0, 0);
+    visibility: hidden;
+    transition: transform 0.25s ease, visibility 0s linear 0.25s;
+  }
+
+  .sidebar.sidebar-open {
+    transform: translate3d(0, 0, 0);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .sidebar .nav-link {
+    min-height: 2.75rem;
+  }
+
+  /* Let each page grow naturally so stacked mobile panels can scroll. */
+  .app-main > .container-fluid {
+    height: auto !important;
+    min-height: 100%;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    overflow: visible !important;
+  }
+
+  .app-main > .container-fluid > .row.flex-grow-1,
+  .app-main > .container-fluid > .row.overflow-hidden {
+    flex-grow: 0 !important;
+    overflow: visible !important;
+  }
+
+  .app-main > .container-fluid .h-100 {
+    height: auto !important;
+  }
+
+  .app-main .row > [class*='col-'],
+  .app-main .row > [class*='col-'] > * {
+    min-width: 0;
+  }
+
+  .app-main .list-group.h-100 {
+    height: auto !important;
+    max-height: 35vh;
+    overflow-y: auto !important;
+  }
+
+  /* Page headers wrap instead of forcing a horizontal scrollbar. */
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center {
+    align-items: flex-start !important;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > h2 {
+    max-width: 100%;
+    font-size: 1.35rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > h2 .me-3 {
+    margin-right: 0.75rem !important;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > :last-child {
+    max-width: 100%;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > :last-child,
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > :last-child > .btn-group {
+    flex-wrap: wrap;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > :last-child > select {
+    max-width: 100%;
+  }
+
+  /* Detail-card action buttons stay usable when their labels are long. */
+  .app-main .card-header.d-flex.justify-content-between.align-items-center {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .app-main .card-header.d-flex.justify-content-between.align-items-center > div:last-child {
+    display: flex;
+    max-width: 100%;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .app-main .card-header.d-flex.justify-content-between.align-items-center > div:last-child > .btn {
+    margin-right: 0 !important;
+  }
+
+  .app-main .form-control,
+  .app-main .form-select,
+  .app-main input,
+  .app-main select,
+  .app-main textarea,
+  .app-main .input-group,
+  .app-main .btn-group {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app-main .input-group > .form-control,
+  .app-main .input-group > .form-select {
+    min-width: 0;
+  }
+
+  .app-main textarea {
+    resize: vertical;
+  }
+
+  .app-main pre,
+  .app-main code,
+  .app-main .font-monospace,
+  .app-main .text-break {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .app-main pre {
+    white-space: pre-wrap;
+  }
+
+  /* Tables without an existing Bootstrap wrapper still get a scroll area. */
+  .app-main .table-responsive {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-main .table-responsive > .table {
+    min-width: 36rem;
+  }
+
+  .app-main .card-body:has(> table.table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-main .card-body:has(> table.table) > table.table {
+    min-width: 48rem;
+  }
+
+  .app-main .table th,
+  .app-main .table td {
+    overflow-wrap: anywhere;
+  }
+
+  .app-main .card-body > .d-flex.justify-content-between.align-items-center {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  /* Compact editors need a vertical layout for their toolbar controls. */
+  .app-main .toml-form > .mb-4.d-flex.align-items-end {
+    align-items: stretch !important;
+    flex-wrap: wrap;
+  }
+
+  .app-main .toml-form > .mb-4.d-flex.align-items-end > .flex-grow-1 {
+    flex: 1 1 100% !important;
+  }
+
+  .app-main .toml-form > .mb-4.d-flex.align-items-end > .btn {
+    width: 100%;
+  }
+
+  .app-main .message-payload-form > .d-flex.justify-content-between.align-items-center {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .app-main .message-payload-form > .d-flex.justify-content-between.align-items-center > div {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .app-main .message-payload-form > .d-flex.justify-content-between.align-items-center .btn {
+    flex: 1 1 auto;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .app-main .btn-group.w-100 {
+    flex-direction: column;
+  }
+
+  .app-main .btn-group.w-100 > .btn,
+  .app-main .btn-group.w-100 > label.btn {
+    width: 100%;
+    flex: 0 0 auto;
+    margin-left: 0 !important;
+    border-radius: var(--bs-border-radius) !important;
+    white-space: normal;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > .btn,
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > .dropdown,
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > .dropdown > .btn {
+    width: 100%;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > :last-child {
+    width: 100%;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > :last-child > select {
+    width: 100% !important;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > :last-child > .btn-group {
+    width: 100%;
+  }
+
+  .app-main > .container-fluid > .d-flex.justify-content-between.align-items-center > :last-child > .btn-group > .btn {
+    flex: 1 1 0;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 420px) {
+  .app-main .card-header {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .app-main .card-body {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  /* Date and time controls are too narrow side by side on small phones. */
+  .app-main .card .row .col-6 > .d-flex.gap-1 {
+    flex-wrap: wrap;
+  }
+
+  .app-main .card .row .col-6 > .d-flex.gap-1 > input {
+    width: 100%;
+    flex: 1 1 100% !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-backdrop,
+  .nav-link {
+    transition: none !important;
+  }
+}

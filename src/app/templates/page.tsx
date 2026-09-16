@@ -1,8 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { API, Template, RunType, TemplateParameter } from '@/lib/api-client';
 import { TemplateList, RunTypeAssociation } from './components';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import ConfirmModal from '@/components/ConfirmModal';
+import AsyncError from '@/components/AsyncError';
+import { useNavigationGuard } from '@/hooks/useNavigationGuard';
 
 interface MessageSchema {
   type_key: string;
@@ -11,7 +16,65 @@ interface MessageSchema {
   $defs?: Record<string, unknown>;
 }
 
+interface TemplateFormData {
+  name: string;
+  displayName: string;
+  type: 'run' | 'message';
+  config: string;
+  runTypeIds: number[];
+  messageType: string;
+  payloadTemplate: string;
+  targetDaqJobType: string;
+  defaultClientId: string;
+  restartOnCrash: boolean;
+}
+
+interface ConfirmationRequest {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onConfirm: () => void;
+}
+
+const emptyTemplateForm = (
+  type: 'run' | 'message' = 'run',
+): TemplateFormData => ({
+  name: '',
+  displayName: '',
+  type,
+  config: '',
+  runTypeIds: [],
+  messageType: '',
+  payloadTemplate: '',
+  targetDaqJobType: '',
+  defaultClientId: '',
+  restartOnCrash: true,
+});
+
+const templateToFormData = (template: Template): TemplateFormData => ({
+  name: template.name,
+  displayName: template.displayName,
+  type: template.type === 'message' ? 'message' : 'run',
+  config: template.config || '',
+  runTypeIds: template.runTypeIds || [],
+  messageType: template.messageType || '',
+  payloadTemplate: template.payloadTemplate || '',
+  targetDaqJobType: template.targetDaqJobType || '',
+  defaultClientId: template.defaultClientId || '',
+  restartOnCrash: template.restartOnCrash ?? true,
+});
+
+const emptyParameterForm = () => ({
+  name: '',
+  displayName: '',
+  type: 'string',
+  defaultValue: '',
+  required: true,
+});
+
 export default function TemplatesPage() {
+  const router = useRouter();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [runTypes, setRunTypes] = useState<RunType[]>([]);
   const [messageSchemas, setMessageSchemas] = useState<
@@ -24,23 +87,43 @@ export default function TemplatesPage() {
   );
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingParameters, setIsLoadingParameters] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [parameterAction, setParameterAction] = useState<'add' | 'update' | number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [parameterError, setParameterError] = useState<string | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    displayName: '',
-    type: 'run' as 'run' | 'message',
-    config: '',
-    runTypeIds: [] as number[],
-    // Message template fields
-    messageType: '',
-    payloadTemplate: '',
-    targetDaqJobType: '' as string, // Empty string = broadcast
-    defaultClientId: '' as string, // Empty string = no default
-    // Run template fields
-    restartOnCrash: true, // Default to true
-  });
+  const [formData, setFormData] = useState<TemplateFormData>(() =>
+    emptyTemplateForm(),
+  );
+  const [formBaseline, setFormBaseline] = useState<TemplateFormData>(() =>
+    emptyTemplateForm(),
+  );
   const [error, setError] = useState<string | null>(null);
+  const [confirmation, setConfirmation] =
+    useState<ConfirmationRequest | null>(null);
+
+  // Parameter drafts are edited in the same form, so protect them as well.
+  const [newParam, setNewParam] = useState(emptyParameterForm);
+  const [parameterEditBaseline, setParameterEditBaseline] = useState(
+    emptyParameterForm,
+  );
+  const [isAddingParam, setIsAddingParam] = useState(false);
+  const [editingParamId, setEditingParamId] = useState<number | null>(null);
+  const [editParamData, setEditParamData] = useState(emptyParameterForm);
+
+  const isParameterDraftDirty =
+    (isAddingParam &&
+      JSON.stringify(newParam) !== JSON.stringify(emptyParameterForm())) ||
+    (editingParamId !== null &&
+      JSON.stringify(editParamData) !== JSON.stringify(parameterEditBaseline));
+  const isDirty =
+    (isCreating || isEditing) &&
+    (JSON.stringify(formData) !== JSON.stringify(formBaseline) ||
+      isParameterDraftDirty);
 
   // Filter state
   const [typeFilter, setTypeFilter] = useState<'all' | 'run' | 'message'>(
@@ -52,28 +135,36 @@ export default function TemplatesPage() {
 
   // Parameters state
   const [parameters, setParameters] = useState<TemplateParameter[]>([]);
-  const [newParam, setNewParam] = useState({
-    name: '',
-    displayName: '',
-    type: 'string',
-    defaultValue: '',
-    required: true,
-  });
-  const [isAddingParam, setIsAddingParam] = useState(false);
-  const [editingParamId, setEditingParamId] = useState<number | null>(null);
-  const [editParamData, setEditParamData] = useState({
-    name: '',
-    displayName: '',
-    type: 'string',
-    defaultValue: '',
-    required: true,
-  });
 
   useEffect(() => {
     loadData();
   }, []);
 
+  const askToDiscardChanges = (onConfirm: () => void) => {
+    setConfirmation({
+      title: 'Discard unsaved changes?',
+      message: 'Your changes will be lost if you continue.',
+      confirmLabel: 'Discard changes',
+      danger: true,
+      onConfirm,
+    });
+  };
+
+  const runWithDiscardCheck = (onConfirm: () => void) => {
+    if (isDirty) {
+      askToDiscardChanges(onConfirm);
+    } else {
+      onConfirm();
+    }
+  };
+
+  useNavigationGuard(isDirty, (href) => {
+    askToDiscardChanges(() => router.push(href));
+  });
+
   const loadData = async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
       const [tData, rtData] = await Promise.all([
         API.getTemplates(),
@@ -112,7 +203,10 @@ export default function TemplatesPage() {
       }
     } catch (e: unknown) {
       const error = e as { message?: string };
-      setError(error.message || 'Failed to load data');
+      const message = error.message || 'Failed to load data';
+      setLoadError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -124,131 +218,94 @@ export default function TemplatesPage() {
       .replace(/[^A-Z0-9_]/g, ''); // Ensure only safe chars
   };
 
-  const handleSelectTemplate = (t: Template) => {
-    if (isCreating) {
-      if (!confirm('Discard changes?')) return;
-    }
-    setSelectedTemplate(t);
-    setIsCreating(false);
-    setIsEditing(false);
-    setFormData({
-      name: t.name,
-      displayName: t.displayName,
-      type: (t.type === 'message' ? 'message' : 'run') as 'run' | 'message',
-      config: t.config || '',
-      runTypeIds: t.runTypeIds || [],
-      messageType: t.messageType || '',
-      payloadTemplate: t.payloadTemplate || '',
-      targetDaqJobType: t.targetDaqJobType || '',
-      defaultClientId: t.defaultClientId || '',
-      restartOnCrash: t.restartOnCrash ?? true,
-    });
-    setError(null);
+  const resetParameterDrafts = () => {
+    setNewParam(emptyParameterForm());
+    setEditingParamId(null);
+    setEditParamData(emptyParameterForm());
+    setParameterEditBaseline(emptyParameterForm());
     setIsAddingParam(false);
-    loadParameters(t.id);
   };
 
-  const handleStartCreate = (type: 'run' | 'message' = 'run') => {
+  const selectTemplate = (template: Template) => {
+    const nextFormData = templateToFormData(template);
+    setSelectedTemplate(template);
+    setIsCreating(false);
+    setIsEditing(false);
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
+    setError(null);
+    resetParameterDrafts();
+    loadParameters(template.id);
+  };
+
+  const handleSelectTemplate = (template: Template) => {
+    runWithDiscardCheck(() => selectTemplate(template));
+  };
+
+  const startCreate = (type: 'run' | 'message') => {
+    const nextFormData = emptyTemplateForm(type);
     setSelectedTemplate(null);
     setIsCreating(true);
     setIsEditing(false);
-    setFormData({
-      name: '',
-      displayName: '',
-      type,
-      config: '',
-      runTypeIds: [],
-      messageType: '',
-      payloadTemplate: '',
-      targetDaqJobType: '',
-      defaultClientId: '',
-      restartOnCrash: true,
-    });
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
     setParameters([]);
-    setEditingParamId(null);
-    setIsAddingParam(false);
+    resetParameterDrafts();
     setError(null);
+  };
+
+  const handleStartCreate = (type: 'run' | 'message' = 'run') => {
+    runWithDiscardCheck(() => startCreate(type));
   };
 
   const handleStartEdit = () => {
     if (!selectedTemplate) return;
+    const nextFormData = templateToFormData(selectedTemplate);
     setIsEditing(true);
-    setFormData({
-      name: selectedTemplate.name,
-      displayName: selectedTemplate.displayName,
-      type: (selectedTemplate.type === 'message' ? 'message' : 'run') as
-        | 'run'
-        | 'message',
-      config: selectedTemplate.config,
-      runTypeIds: selectedTemplate.runTypeIds || [],
-      messageType: selectedTemplate.messageType || '',
-      payloadTemplate: selectedTemplate.payloadTemplate || '',
-      targetDaqJobType: selectedTemplate.targetDaqJobType || '',
-      defaultClientId: selectedTemplate.defaultClientId || '',
-      restartOnCrash: selectedTemplate.restartOnCrash ?? true,
-    });
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
+    resetParameterDrafts();
+  };
+
+  const cancelForm = () => {
+    const nextFormData = selectedTemplate
+      ? templateToFormData(selectedTemplate)
+      : emptyTemplateForm();
+    setIsCreating(false);
+    setIsEditing(false);
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
+    setError(null);
+    resetParameterDrafts();
   };
 
   const handleCancel = () => {
-    setIsCreating(false);
-    setIsEditing(false);
-    if (selectedTemplate) {
-      setFormData({
-        name: selectedTemplate.name,
-        displayName: selectedTemplate.displayName,
-        type: (selectedTemplate.type === 'message' ? 'message' : 'run') as
-          | 'run'
-          | 'message',
-        config: selectedTemplate.config || '',
-        runTypeIds: selectedTemplate.runTypeIds || [],
-        messageType: selectedTemplate.messageType || '',
-        payloadTemplate: selectedTemplate.payloadTemplate || '',
-        targetDaqJobType: selectedTemplate.targetDaqJobType || '',
-        defaultClientId: selectedTemplate.defaultClientId || '',
-        restartOnCrash: selectedTemplate.restartOnCrash ?? true,
-      });
-    } else {
-      setFormData({
-        name: '',
-        displayName: '',
-        type: 'run',
-        config: '',
-        runTypeIds: [],
-        messageType: '',
-        payloadTemplate: '',
-        targetDaqJobType: '',
-        defaultClientId: '',
-        restartOnCrash: true,
-      });
-    }
-    setError(null);
-    setIsAddingParam(false);
-    setEditingParamId(null);
+    runWithDiscardCheck(cancelForm);
   };
 
   const loadParameters = async (templateId: number) => {
+    setIsLoadingParameters(true);
+    setParameterError(null);
     try {
       const params = await API.getTemplateParameters(templateId);
       setParameters(params);
     } catch (e) {
       console.error('Failed to load parameters:', e);
+      setParameterError('Failed to load parameters. Please try again.');
       setParameters([]);
+    } finally {
+      setIsLoadingParameters(false);
     }
   };
 
   const handleAddParameter = async () => {
     if (!selectedTemplate || !newParam.name || !newParam.displayName) return;
 
+    setParameterAction('add');
     try {
       await API.createTemplateParameter(selectedTemplate.id, newParam);
       await loadParameters(selectedTemplate.id);
-      setNewParam({
-        name: '',
-        displayName: '',
-        type: 'string',
-        defaultValue: '',
-        required: true,
-      });
+      setNewParam(emptyParameterForm());
       setIsAddingParam(false);
     } catch (e: unknown) {
       const error = e as {
@@ -260,11 +317,29 @@ export default function TemplatesPage() {
           error.message ||
           'Failed to add parameter'
       );
+    } finally {
+      setParameterAction(null);
     }
   };
 
-  const handleDeleteParameter = async (paramId: number) => {
-    if (!confirm('Delete this parameter?')) return;
+  const cancelAddParam = () => {
+    setIsAddingParam(false);
+    setNewParam(emptyParameterForm());
+  };
+
+  const handleCancelAddParam = () => {
+    const hasChanges =
+      isAddingParam &&
+      JSON.stringify(newParam) !== JSON.stringify(emptyParameterForm());
+    if (hasChanges) {
+      askToDiscardChanges(cancelAddParam);
+    } else {
+      cancelAddParam();
+    }
+  };
+
+  const deleteParameter = async (paramId: number) => {
+    setParameterAction(paramId);
     try {
       await API.deleteTemplateParameter(paramId);
       if (selectedTemplate) {
@@ -280,33 +355,66 @@ export default function TemplatesPage() {
           error.message ||
           'Failed to delete parameter'
       );
+    } finally {
+      setParameterAction(null);
     }
   };
 
+  const handleDeleteParameter = (paramId: number) => {
+    const parameter = parameters.find((item) => item.id === paramId);
+    setConfirmation({
+      title: 'Delete parameter?',
+      message: parameter
+        ? `Are you sure you want to delete the parameter "${parameter.displayName}"?`
+        : 'Are you sure you want to delete this parameter?',
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => {
+        void deleteParameter(paramId);
+      },
+    });
+  };
+
   const handleStartEditParam = (param: TemplateParameter) => {
-    setEditingParamId(param.id);
-    setEditParamData({
+    const nextParamData = {
       name: param.name,
       displayName: param.displayName,
       type: param.type,
       defaultValue: param.defaultValue || '',
       required: param.required,
-    });
+    };
+    setEditingParamId(param.id);
+    setEditParamData(nextParamData);
+    setParameterEditBaseline(nextParamData);
+  };
+
+  const cancelEditParam = () => {
+    setEditingParamId(null);
+    setEditParamData(emptyParameterForm());
+    setParameterEditBaseline(emptyParameterForm());
   };
 
   const handleCancelEditParam = () => {
-    setEditingParamId(null);
+    const hasChanges =
+      editingParamId !== null &&
+      JSON.stringify(editParamData) !== JSON.stringify(parameterEditBaseline);
+    if (hasChanges) {
+      askToDiscardChanges(cancelEditParam);
+    } else {
+      cancelEditParam();
+    }
   };
 
   const handleUpdateParameter = async () => {
     if (!editingParamId || !editParamData.name || !editParamData.displayName)
       return;
+    setParameterAction('update');
     try {
       await API.updateTemplateParameter(editingParamId, editParamData);
       if (selectedTemplate) {
         await loadParameters(selectedTemplate.id);
       }
-      setEditingParamId(null);
+      cancelEditParam();
     } catch (e: unknown) {
       const error = e as {
         response?: { data?: { error?: string } };
@@ -317,11 +425,14 @@ export default function TemplatesPage() {
           error.message ||
           'Failed to update parameter'
       );
+    } finally {
+      setParameterAction(null);
     }
   };
 
   const handleSave = async () => {
     setError(null);
+    setIsSaving(true);
     try {
       // Validate JSON for message templates
       /*
@@ -359,9 +470,13 @@ export default function TemplatesPage() {
           restartOnCrash:
             formData.type === 'run' ? formData.restartOnCrash : true,
         });
+        const nextFormData = templateToFormData(newTemplate);
+        setFormData(nextFormData);
+        setFormBaseline(nextFormData);
+        setParameters([]);
+        resetParameterDrafts();
         await loadData();
         setSelectedTemplate(newTemplate);
-        setParameters([]);
         setIsCreating(false);
       } else if (isEditing && selectedTemplate) {
         const updated = await API.updateTemplate(selectedTemplate.id, {
@@ -376,6 +491,10 @@ export default function TemplatesPage() {
           restartOnCrash:
             formData.type === 'run' ? formData.restartOnCrash : true,
         });
+        const nextFormData = templateToFormData(updated);
+        setFormData(nextFormData);
+        setFormBaseline(nextFormData);
+        resetParameterDrafts();
         await loadData();
         setSelectedTemplate(updated);
         setIsEditing(false);
@@ -390,23 +509,26 @@ export default function TemplatesPage() {
           error.message ||
           'Failed to save template'
       );
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleDelete = async () => {
+  const deleteTemplate = async () => {
     if (!selectedTemplate) return;
-    if (
-      !confirm(
-        `Are you sure you want to delete template "${selectedTemplate.displayName}"?`
-      )
-    )
-      return;
 
+    setIsDeleting(true);
     try {
       await API.deleteTemplate(selectedTemplate.id);
       await loadData();
+      const nextFormData = emptyTemplateForm();
       setSelectedTemplate(null);
+      setIsCreating(false);
       setIsEditing(false);
+      setFormData(nextFormData);
+      setFormBaseline(nextFormData);
+      setParameters([]);
+      resetParameterDrafts();
     } catch (e: unknown) {
       const error = e as {
         response?: { data?: { error?: string } };
@@ -417,7 +539,22 @@ export default function TemplatesPage() {
           error.message ||
           'Failed to delete template'
       );
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleDelete = () => {
+    if (!selectedTemplate) return;
+    setConfirmation({
+      title: 'Delete template?',
+      message: `Are you sure you want to delete template "${selectedTemplate.displayName}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => {
+        void deleteTemplate();
+      },
+    });
   };
 
   const toggleRunType = (id: number) => {
@@ -514,12 +651,21 @@ export default function TemplatesPage() {
       <div className="row flex-grow-1 overflow-hidden g-4">
         {/* List Column */}
         <div className="col-md-4 h-100 d-flex flex-column">
+          {loadError && !isLoading ? (
+            <AsyncError
+              message={loadError}
+              onRetry={loadData}
+              retryLabel="Retry loading templates"
+              className="mb-3"
+            />
+          ) : null}
           <TemplateList
             templates={templates}
             selectedTemplateId={selectedTemplate?.id || null}
             typeFilter={typeFilter}
             setTypeFilter={setTypeFilter}
             onSelectTemplate={handleSelectTemplate}
+            isLoading={isLoading}
           />
         </div>
 
@@ -556,8 +702,16 @@ export default function TemplatesPage() {
                       <button
                         className="btn btn-outline-danger me-2"
                         onClick={handleDelete}
+                        disabled={isDeleting || isSaving}
                       >
-                        <i className="fa-solid fa-trash me-2"></i>Delete
+                        {isDeleting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                            Deleting...
+                          </>
+                        ) : (
+                          <><i className="fa-solid fa-trash me-2"></i>Delete</>
+                        )}
                       </button>
                       <button
                         className="btn btn-primary"
@@ -572,11 +726,23 @@ export default function TemplatesPage() {
                       <button
                         className="btn btn-secondary me-2"
                         onClick={handleCancel}
+                        disabled={isSaving}
                       >
                         Cancel
                       </button>
-                      <button className="btn btn-success" onClick={handleSave}>
-                        <i className="fa-solid fa-save me-2"></i>Save
+                      <button
+                        className="btn btn-success"
+                        onClick={handleSave}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                            Saving...
+                          </>
+                        ) : (
+                          <><i className="fa-solid fa-save me-2"></i>Save</>
+                        )}
                       </button>
                     </>
                   )}
@@ -676,7 +842,16 @@ export default function TemplatesPage() {
                     </div>
 
                     <div className="list-group mb-3">
-                      {parameters.map((p) => (
+                      {isLoadingParameters ? (
+                        <LoadingSpinner label="Loading parameters..." className="p-3" />
+                      ) : parameterError ? (
+                        <AsyncError
+                          message={parameterError}
+                          onRetry={() => selectedTemplate && loadParameters(selectedTemplate.id)}
+                          retryLabel="Retry loading parameters"
+                          className="m-2"
+                        />
+                      ) : parameters.map((p) => (
                         <div
                           key={p.id}
                           className="list-group-item bg-dark text-light border-secondary p-2"
@@ -764,12 +939,18 @@ export default function TemplatesPage() {
                                   <button
                                     className="btn btn-sm btn-success me-1"
                                     onClick={handleUpdateParameter}
+                                    disabled={parameterAction !== null}
                                   >
-                                    <i className="fa-solid fa-check"></i>
+                                    {parameterAction === 'update' ? (
+                                      <span className="spinner-border spinner-border-sm" aria-label="Updating parameter"></span>
+                                    ) : (
+                                      <i className="fa-solid fa-check"></i>
+                                    )}
                                   </button>
                                   <button
                                     className="btn btn-sm btn-secondary"
                                     onClick={handleCancelEditParam}
+                                    disabled={parameterAction !== null}
                                   >
                                     <i className="fa-solid fa-xmark"></i>
                                   </button>
@@ -803,6 +984,7 @@ export default function TemplatesPage() {
                                     className="btn btn-sm btn-outline-info me-2"
                                     onClick={() => handleStartEditParam(p)}
                                     title="Edit Parameter"
+                                    disabled={parameterAction !== null}
                                   >
                                     <i className="fa-solid fa-pen"></i>
                                   </button>
@@ -810,8 +992,13 @@ export default function TemplatesPage() {
                                     className="btn btn-sm btn-outline-danger"
                                     onClick={() => handleDeleteParameter(p.id)}
                                     title="Delete Parameter"
+                                    disabled={parameterAction !== null}
                                   >
-                                    <i className="fa-solid fa-trash"></i>
+                                    {parameterAction === p.id ? (
+                                      <span className="spinner-border spinner-border-sm" aria-label="Deleting parameter"></span>
+                                    ) : (
+                                      <i className="fa-solid fa-trash"></i>
+                                    )}
                                   </button>
                                 </div>
                               )}
@@ -819,7 +1006,7 @@ export default function TemplatesPage() {
                           )}
                         </div>
                       ))}
-                      {parameters.length === 0 && (
+                      {!isLoadingParameters && !parameterError && parameters.length === 0 && (
                         <div className="text-muted small fst-italic p-2 border border-secondary border-dashed rounded text-center">
                           No parameters defined. Add parameters to make this
                           template dynamic.
@@ -924,15 +1111,24 @@ export default function TemplatesPage() {
                           <div className="col-12 text-end mt-3">
                             <button
                               className="btn btn-sm btn-secondary me-2"
-                              onClick={() => setIsAddingParam(false)}
+                              onClick={handleCancelAddParam}
+                              disabled={parameterAction !== null}
                             >
                               Cancel
                             </button>
                             <button
                               className="btn btn-sm btn-success"
                               onClick={handleAddParameter}
+                              disabled={parameterAction !== null}
                             >
-                              Add Parameter
+                              {parameterAction === 'add' ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+                                  Adding...
+                                </>
+                              ) : (
+                                'Add Parameter'
+                              )}
                             </button>
                           </div>
                         </div>
@@ -1119,6 +1315,21 @@ export default function TemplatesPage() {
           )}
         </div>
       </div>
+
+      {confirmation && (
+        <ConfirmModal
+          title={confirmation.title}
+          message={confirmation.message}
+          confirmLabel={confirmation.confirmLabel}
+          danger={confirmation.danger}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => {
+            const action = confirmation.onConfirm;
+            setConfirmation(null);
+            action();
+          }}
+        />
+      )}
     </div>
   );
 }

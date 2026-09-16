@@ -1,128 +1,174 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { API } from '@/lib/api-client';
 import type { Webhook } from '@/lib/types';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import ConfirmModal from '@/components/ConfirmModal';
+import AsyncError from '@/components/AsyncError';
+import { useNavigationGuard } from '@/hooks/useNavigationGuard';
+
+interface WebhookFormData {
+  name: string;
+  url: string;
+  secret: string;
+  isActive: boolean;
+  triggerOnRun: boolean;
+  triggerOnMessage: boolean;
+  payloadTemplate: string;
+}
+
+interface ConfirmationRequest {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  onConfirm: () => void;
+}
+
+const emptyWebhookForm = (): WebhookFormData => ({
+  name: '',
+  url: '',
+  secret: '',
+  isActive: true,
+  triggerOnRun: false,
+  triggerOnMessage: false,
+  payloadTemplate: '',
+});
+
+const webhookToFormData = (webhook: Webhook): WebhookFormData => ({
+  name: webhook.name,
+  url: webhook.url,
+  secret: webhook.secret || '',
+  isActive: webhook.isActive,
+  triggerOnRun: webhook.triggerOnRun,
+  triggerOnMessage: webhook.triggerOnMessage,
+  payloadTemplate: webhook.payloadTemplate || '',
+});
 
 export default function WebhooksPage() {
+  const router = useRouter();
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [selectedWebhook, setSelectedWebhook] = useState<Webhook | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState<{
-    name: string;
-    url: string;
-    secret: string;
-    isActive: boolean;
-    triggerOnRun: boolean;
-    triggerOnMessage: boolean;
-    payloadTemplate: string;
-  }>({
-    name: '',
-    url: '',
-    secret: '',
-    isActive: true,
-    triggerOnRun: false,
-    triggerOnMessage: false,
-    payloadTemplate: '',
-  });
+  const [formData, setFormData] = useState<WebhookFormData>(() =>
+    emptyWebhookForm(),
+  );
+  const [formBaseline, setFormBaseline] = useState<WebhookFormData>(() =>
+    emptyWebhookForm(),
+  );
   const [error, setError] = useState<string | null>(null);
+  const [confirmation, setConfirmation] =
+    useState<ConfirmationRequest | null>(null);
+
+  const isDirty =
+    (isCreating || isEditing) &&
+    JSON.stringify(formData) !== JSON.stringify(formBaseline);
 
   useEffect(() => {
     loadData();
   }, []);
 
+  const askToDiscardChanges = (onConfirm: () => void) => {
+    setConfirmation({
+      title: 'Discard unsaved changes?',
+      message: 'Your changes will be lost if you continue.',
+      confirmLabel: 'Discard changes',
+      danger: true,
+      onConfirm,
+    });
+  };
+
+  const runWithDiscardCheck = (onConfirm: () => void) => {
+    if (isDirty) {
+      askToDiscardChanges(onConfirm);
+    } else {
+      onConfirm();
+    }
+  };
+
+  useNavigationGuard(isDirty, (href) => {
+    askToDiscardChanges(() => router.push(href));
+  });
+
   const loadData = async () => {
+    setIsLoading(true);
+    setLoadError(null);
     try {
       const data = await API.getWebhooks();
       setWebhooks(data);
     } catch (e: unknown) {
       const error = e as { message?: string };
-      setError(error.message || 'Failed to load webhooks');
+      const message = error.message || 'Failed to load webhooks';
+      setLoadError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleSelectWebhook = (webhook: Webhook) => {
-    if (isCreating || isEditing) {
-      if (!confirm('Discard changes?')) return;
-    }
+  const selectWebhook = (webhook: Webhook) => {
+    const nextFormData = webhookToFormData(webhook);
     setSelectedWebhook(webhook);
     setIsCreating(false);
     setIsEditing(false);
-    setFormData({
-      name: webhook.name,
-      url: webhook.url,
-      secret: webhook.secret || '',
-      isActive: webhook.isActive,
-      triggerOnRun: webhook.triggerOnRun,
-      triggerOnMessage: webhook.triggerOnMessage,
-      payloadTemplate: webhook.payloadTemplate || '',
-    });
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
+    setError(null);
+  };
+
+  const handleSelectWebhook = (webhook: Webhook) => {
+    runWithDiscardCheck(() => selectWebhook(webhook));
+  };
+
+  const startCreate = () => {
+    const nextFormData = emptyWebhookForm();
+    setSelectedWebhook(null);
+    setIsCreating(true);
+    setIsEditing(false);
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
     setError(null);
   };
 
   const handleStartCreate = () => {
-    setSelectedWebhook(null);
-    setIsCreating(true);
-    setIsEditing(false);
-    setFormData({
-      name: '',
-      url: '',
-      secret: '',
-      isActive: true,
-      triggerOnRun: false,
-      triggerOnMessage: false,
-      payloadTemplate: '',
-    });
-    setError(null);
+    runWithDiscardCheck(startCreate);
   };
 
   const handleStartEdit = () => {
     if (!selectedWebhook) return;
+    const nextFormData = webhookToFormData(selectedWebhook);
     setIsEditing(true);
-    setFormData({
-      name: selectedWebhook.name,
-      url: selectedWebhook.url,
-      secret: selectedWebhook.secret || '',
-      isActive: selectedWebhook.isActive,
-      triggerOnRun: selectedWebhook.triggerOnRun,
-      triggerOnMessage: selectedWebhook.triggerOnMessage,
-      payloadTemplate: selectedWebhook.payloadTemplate || '',
-    });
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
+  };
+
+  const cancelForm = () => {
+    const nextFormData = selectedWebhook
+      ? webhookToFormData(selectedWebhook)
+      : emptyWebhookForm();
+    setIsCreating(false);
+    setIsEditing(false);
+    setFormData(nextFormData);
+    setFormBaseline(nextFormData);
+    setError(null);
   };
 
   const handleCancel = () => {
-    setIsCreating(false);
-    setIsEditing(false);
-    if (selectedWebhook) {
-      setFormData({
-        name: selectedWebhook.name,
-        url: selectedWebhook.url,
-        secret: selectedWebhook.secret || '',
-        isActive: selectedWebhook.isActive,
-        triggerOnRun: selectedWebhook.triggerOnRun,
-        triggerOnMessage: selectedWebhook.triggerOnMessage,
-        payloadTemplate: selectedWebhook.payloadTemplate || '',
-      });
-    } else {
-      setFormData({
-        name: '',
-        url: '',
-        secret: '',
-        isActive: true,
-        triggerOnRun: false,
-        triggerOnMessage: false,
-        payloadTemplate: '',
-      });
-    }
-    setError(null);
+    runWithDiscardCheck(cancelForm);
   };
 
   const handleSave = async () => {
     setError(null);
+    setIsSaving(true);
     try {
       if (!formData.name.trim() || !formData.url.trim()) {
         throw new Error('Name and URL are required.');
@@ -139,7 +185,10 @@ export default function WebhooksPage() {
           payloadTemplate: formData.payloadTemplate,
         });
         await loadData();
+        const nextFormData = webhookToFormData(newWebhook);
         setSelectedWebhook(newWebhook);
+        setFormData(nextFormData);
+        setFormBaseline(nextFormData);
         setIsCreating(false);
         toast.success('Webhook created successfully');
       } else if (isEditing && selectedWebhook) {
@@ -153,7 +202,10 @@ export default function WebhooksPage() {
           payloadTemplate: formData.payloadTemplate,
         });
         await loadData();
+        const nextFormData = webhookToFormData(updated);
         setSelectedWebhook(updated);
+        setFormData(nextFormData);
+        setFormBaseline(nextFormData);
         setIsEditing(false);
         toast.success('Webhook updated successfully');
       }
@@ -167,23 +219,24 @@ export default function WebhooksPage() {
           error.message ||
           'Failed to save webhook',
       );
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleDelete = async () => {
+  const deleteWebhook = async () => {
     if (!selectedWebhook) return;
-    if (
-      !confirm(
-        `Are you sure you want to delete the webhook "${selectedWebhook.name}"?`,
-      )
-    )
-      return;
 
+    setIsDeleting(true);
     try {
       await API.deleteWebhook(selectedWebhook.id);
       await loadData();
+      const nextFormData = emptyWebhookForm();
       setSelectedWebhook(null);
+      setIsCreating(false);
       setIsEditing(false);
+      setFormData(nextFormData);
+      setFormBaseline(nextFormData);
       toast.success('Webhook deleted successfully');
     } catch (e: unknown) {
       const error = e as {
@@ -195,7 +248,22 @@ export default function WebhooksPage() {
           error.message ||
           'Failed to delete webhook',
       );
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleDelete = () => {
+    if (!selectedWebhook) return;
+    setConfirmation({
+      title: 'Delete webhook?',
+      message: `Are you sure you want to delete the webhook "${selectedWebhook.name}"?`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => {
+        void deleteWebhook();
+      },
+    });
   };
 
   return (
@@ -217,30 +285,41 @@ export default function WebhooksPage() {
               Configured Webhooks
             </div>
             <div className="list-group list-group-flush overflow-auto h-100">
-              {webhooks.map((webhook) => (
-                <button
-                  key={webhook.id}
-                  onClick={() => handleSelectWebhook(webhook)}
-                  className={`list-group-item list-group-item-action bg-dark text-light border-secondary ${
-                    selectedWebhook?.id === webhook.id ? 'active' : ''
-                  }`}
-                >
-                  <div className="d-flex w-100 justify-content-between align-items-center">
-                    <h6 className="mb-1 fw-bold">
-                      {webhook.name}
-                      {!webhook.isActive && (
-                        <span className="badge bg-secondary ms-2 small">
-                          Disabled
-                        </span>
-                      )}
-                    </h6>
-                  </div>
-                  <small className="text-muted text-truncate d-block">
-                    {webhook.url}
-                  </small>
-                </button>
-              ))}
-              {webhooks.length === 0 && (
+              {isLoading ? (
+                <LoadingSpinner label="Loading webhooks..." className="p-4" />
+              ) : loadError ? (
+                <AsyncError
+                  message={loadError}
+                  onRetry={loadData}
+                  retryLabel="Retry loading webhooks"
+                  className="m-3"
+                />
+              ) : (
+                webhooks.map((webhook) => (
+                  <button
+                    key={webhook.id}
+                    onClick={() => handleSelectWebhook(webhook)}
+                    className={`list-group-item list-group-item-action bg-dark text-light border-secondary ${
+                      selectedWebhook?.id === webhook.id ? 'active' : ''
+                    }`}
+                  >
+                    <div className="d-flex w-100 justify-content-between align-items-center">
+                      <h6 className="mb-1 fw-bold">
+                        {webhook.name}
+                        {!webhook.isActive && (
+                          <span className="badge bg-secondary ms-2 small">
+                            Disabled
+                          </span>
+                        )}
+                      </h6>
+                    </div>
+                    <small className="text-muted text-truncate d-block">
+                      {webhook.url}
+                    </small>
+                  </button>
+                ))
+              )}
+              {!isLoading && !loadError && webhooks.length === 0 && (
                 <div className="p-3 text-center text-muted">
                   No webhooks found.
                 </div>
@@ -274,8 +353,16 @@ export default function WebhooksPage() {
                       <button
                         className="btn btn-outline-danger me-2"
                         onClick={handleDelete}
+                        disabled={isDeleting || isSaving}
                       >
-                        <i className="fa-solid fa-trash me-2"></i>Delete
+                        {isDeleting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                            Deleting...
+                          </>
+                        ) : (
+                          <><i className="fa-solid fa-trash me-2"></i>Delete</>
+                        )}
                       </button>
                       <button
                         className="btn btn-primary"
@@ -290,11 +377,23 @@ export default function WebhooksPage() {
                       <button
                         className="btn btn-secondary me-2"
                         onClick={handleCancel}
+                        disabled={isSaving}
                       >
                         Cancel
                       </button>
-                      <button className="btn btn-success" onClick={handleSave}>
-                        <i className="fa-solid fa-save me-2"></i>Save
+                      <button
+                        className="btn btn-success"
+                        onClick={handleSave}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                            Saving...
+                          </>
+                        ) : (
+                          <><i className="fa-solid fa-save me-2"></i>Save</>
+                        )}
                       </button>
                     </>
                   )}
@@ -476,6 +575,21 @@ export default function WebhooksPage() {
           )}
         </div>
       </div>
+
+      {confirmation && (
+        <ConfirmModal
+          title={confirmation.title}
+          message={confirmation.message}
+          confirmLabel={confirmation.confirmLabel}
+          danger={confirmation.danger}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => {
+            const action = confirmation.onConfirm;
+            setConfirmation(null);
+            action();
+          }}
+        />
+      )}
     </div>
   );
 }

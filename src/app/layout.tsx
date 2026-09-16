@@ -24,15 +24,18 @@ export default function RootLayout({
       <body className="bg-dark text-light">
         <GlobalPoller />
         <Toaster position="top-right" />
-        <div className="container-fluid vh-100 d-flex flex-column overflow-hidden p-0">
-          <div className="row g-0 flex-grow-1 h-100">
+        <div className="container-fluid app-shell vh-100 d-flex flex-column overflow-hidden p-0">
+          <div className="row app-layout g-0 flex-grow-1 h-100">
             {/* Sidebar */}
             <Sidebar />
 
             {/* Main Content Area */}
-            <div className="col d-flex flex-column h-100 overflow-hidden bg-dark">
+            <main
+              id="main-content"
+              className="col app-main d-flex flex-column h-100 overflow-hidden bg-dark"
+            >
               {children}
-            </div>
+            </main>
           </div>
         </div>
       </body>
