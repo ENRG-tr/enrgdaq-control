@@ -42,6 +42,7 @@ export const runTypes = pgTable('run_types', {
   name: text('name').notNull().unique(),
   description: text('description'),
   requiredTags: json('required_tags').$type<string[]>(),
+  disabled: boolean('disabled').notNull().default(false),
 });
 
 // Templates table - DAQ job configuration templates and message templates

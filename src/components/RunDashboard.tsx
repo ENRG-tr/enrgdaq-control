@@ -213,10 +213,15 @@ const RunDashboard = () => {
     loadParameters();
   }, [selectedRunTypeId]);
 
-  const activeRunType = runTypes.find(
+  const availableRunTypes = React.useMemo(
+    () => runTypes.filter((runType) => !runType.disabled),
+    [runTypes],
+  );
+  const activeRunType = availableRunTypes.find(
     (rt) =>
       rt.id === (selectedRunTypeId === '' ? -1 : Number(selectedRunTypeId)),
   );
+
   const filteredClients = React.useMemo(() => {
     if (
       !activeRunType ||
@@ -244,7 +249,7 @@ const RunDashboard = () => {
   }, [filteredClients, selectedClient, selectClient]);
 
   const handleStart = async () => {
-    if (!description) return;
+    if (!description || !activeRunType) return;
 
     // Validate required parameters
     for (const param of parameters) {
@@ -661,7 +666,7 @@ const RunDashboard = () => {
                       ? 'Loading run types...'
                       : '-- Select Run Type --'}
                   </option>
-                  {runTypes.map((rt) => (
+                  {availableRunTypes.map((rt) => (
                     <option key={rt.id} value={rt.id}>
                       {rt.name}
                     </option>
@@ -920,6 +925,7 @@ const RunDashboard = () => {
                   !description ||
                   isStarting ||
                   !selectedRunTypeId ||
+                  !activeRunType ||
                   !canControlRuns
                 }
                 className="btn btn-primary btn-lg w-100 mt-3"

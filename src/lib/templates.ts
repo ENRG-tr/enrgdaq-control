@@ -129,6 +129,7 @@ export class TemplateController {
     name: string;
     description?: string;
     requiredTags?: string[];
+    disabled?: boolean;
   }): Promise<RunType> {
     const [runType] = await db
       .insert(runTypes)
@@ -136,6 +137,7 @@ export class TemplateController {
         name: data.name,
         description: data.description,
         requiredTags: data.requiredTags,
+        disabled: data.disabled ?? false,
       })
       .returning();
     return runType;
@@ -143,7 +145,12 @@ export class TemplateController {
 
   static async updateRunType(
     id: number,
-    data: { name?: string; description?: string; requiredTags?: string[] }
+    data: {
+      name?: string;
+      description?: string;
+      requiredTags?: string[];
+      disabled?: boolean;
+    }
   ): Promise<RunType | null> {
     const [updated] = await db
       .update(runTypes)

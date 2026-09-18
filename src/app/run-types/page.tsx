@@ -13,6 +13,7 @@ interface RunTypeFormData {
   description: string;
   requiredTags: string[];
   templateIds: number[];
+  disabled: boolean;
 }
 
 interface ConfirmationRequest {
@@ -28,6 +29,7 @@ const emptyRunTypeForm = (): RunTypeFormData => ({
   description: '',
   requiredTags: [],
   templateIds: [],
+  disabled: false,
 });
 
 export default function RunTypesPage() {
@@ -146,6 +148,7 @@ export default function RunTypesPage() {
       description: runType.description || '',
       requiredTags: runType.requiredTags || [],
       templateIds: associatedIds,
+      disabled: runType.disabled,
     };
     setSelectedRunType(runType);
     setIsCreating(false);
@@ -183,6 +186,7 @@ export default function RunTypesPage() {
       description: selectedRunType.description || '',
       requiredTags: selectedRunType.requiredTags || [],
       templateIds: formData.templateIds,
+      disabled: selectedRunType.disabled,
     };
     setIsEditing(true);
     setFormData(nextFormData);
@@ -200,6 +204,7 @@ export default function RunTypesPage() {
         description: selectedRunType.description || '',
         requiredTags: selectedRunType.requiredTags || [],
         templateIds: associatedIds,
+        disabled: selectedRunType.disabled,
       };
       setFormData(nextFormData);
       setFormBaseline(nextFormData);
@@ -227,6 +232,7 @@ export default function RunTypesPage() {
           name: formData.name,
           description: formData.description,
           requiredTags: formData.requiredTags,
+          disabled: formData.disabled,
         });
 
         if (formData.templateIds.length > 0) {
@@ -249,6 +255,7 @@ export default function RunTypesPage() {
           name: formData.name,
           description: formData.description,
           requiredTags: formData.requiredTags,
+          disabled: formData.disabled,
         });
 
         // Update templates
@@ -263,6 +270,7 @@ export default function RunTypesPage() {
           description: updated.description || '',
           requiredTags: updated.requiredTags || [],
           templateIds: [...formData.templateIds],
+          disabled: updated.disabled,
         };
         setSelectedRunType(updated);
         setFormData(nextFormData);
@@ -389,8 +397,11 @@ export default function RunTypesPage() {
                       selectedRunType?.id === rt.id ? 'active' : ''
                     }`}
                   >
-                    <div className="d-flex w-100 justify-content-between">
+                    <div className="d-flex w-100 justify-content-between align-items-center">
                       <h6 className="mb-1 fw-bold">{rt.name}</h6>
+                      {rt.disabled && (
+                        <span className="badge bg-secondary">Disabled</span>
+                      )}
                     </div>
                     <small className="text-muted text-truncate d-block">
                       {rt.description}
@@ -511,6 +522,30 @@ export default function RunTypesPage() {
                     disabled={!isCreating && !isEditing}
                     placeholder="Description of this run type..."
                   />
+                </div>
+
+                <div className="mb-3">
+                  <div className="form-check form-switch">
+                    <input
+                      id="run-type-disabled"
+                      type="checkbox"
+                      className="form-check-input"
+                      checked={formData.disabled}
+                      onChange={(e) =>
+                        setFormData({ ...formData, disabled: e.target.checked })
+                      }
+                      disabled={!isCreating && !isEditing}
+                    />
+                    <label
+                      className="form-check-label text-light"
+                      htmlFor="run-type-disabled"
+                    >
+                      Disabled
+                    </label>
+                  </div>
+                  <div className="form-text">
+                    Disabled run types are hidden from Start New Acquisition.
+                  </div>
                 </div>
 
                 <div className="mb-3">

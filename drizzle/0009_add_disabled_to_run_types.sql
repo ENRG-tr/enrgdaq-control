@@ -1,0 +1,1 @@
+ALTER TABLE "run_types" ADD COLUMN "disabled" boolean DEFAULT false NOT NULL;

@@ -367,6 +367,21 @@ export class RunController {
   ): Promise<Run> {
     console.log('[startRun] Starting run process...');
 
+    if (runTypeId !== undefined && runTypeId !== null) {
+      const [runType] = await db
+        .select({ disabled: runTypes.disabled })
+        .from(runTypes)
+        .where(eq(runTypes.id, runTypeId))
+        .limit(1);
+
+      if (!runType) {
+        throw new Error('Run type not found');
+      }
+      if (runType.disabled) {
+        throw new Error('Run type is disabled');
+      }
+    }
+
     // 1. Check for existing active run
     await this.ensureNoActiveRun();
 

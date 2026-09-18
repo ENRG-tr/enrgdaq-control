@@ -40,6 +40,7 @@ export interface RunType {
   name: string;
   description: string | null;
   requiredTags: string[] | null;
+  disabled: boolean;
 }
 
 export interface RunOutputEntry {
@@ -174,6 +175,7 @@ export const API = {
     name: string;
     description?: string;
     requiredTags?: string[];
+    disabled?: boolean;
   }): Promise<RunType> {
     const { data } = await api.post('/run-types', createData);
     return data;
@@ -185,6 +187,7 @@ export const API = {
       name?: string;
       description?: string;
       requiredTags?: string[];
+      disabled?: boolean;
     },
   ): Promise<RunType> {
     const { data } = await api.post(`/run-types/${id}/update`, updateData);
